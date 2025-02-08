@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+ import 'package:peerreview/config.dart';
 
 class ResultScreen extends StatelessWidget {
   final int score;

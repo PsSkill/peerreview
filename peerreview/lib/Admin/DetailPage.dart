@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+ import 'package:peerreview/config.dart';
 
 class DetailPage extends StatefulWidget {
   final Map<String, dynamic> assignment;
@@ -83,7 +84,7 @@ class _DetailPageState extends State<DetailPage> {
 
     try {
       final response = await http.post(
-        Uri.parse("http://192.168.168.45:5001/api/assignments"),
+        Uri.parse("'$apiBaseUrl/api/assignment"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(assignmentData),
       );

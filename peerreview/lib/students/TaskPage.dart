@@ -34,7 +34,7 @@ class _TaskPageState extends State<TaskPage> {
   // Fetch question based on assignment title
   Future<void> fetchQuestion() async {
     try {
-      final response = await http.get(Uri.parse('http://192.168.168.45:5000/api/questions'));
+      final response = await http.get(Uri.parse('$apiBaseUrl/api/questions'));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         

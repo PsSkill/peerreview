@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'detailPage.dart';
 import 'createAssignment.dart';
+ import 'package:peerreview/config.dart';
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
@@ -25,7 +26,7 @@ class _AdminScreenState extends State<AdminScreen> {
 
   Future<void> fetchAssignments() async {
     try {
-      final response = await http.get(Uri.parse('http://192.168.168.45:5000/api/assignments'));
+      final response = await http.get(Uri.parse('$apiBaseUrl/api/assignment'));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -44,7 +45,6 @@ class _AdminScreenState extends State<AdminScreen> {
       });
     }
   }
-
 
   Future<void> _refreshAssignments() async {
     setState(() {

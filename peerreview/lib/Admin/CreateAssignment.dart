@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'adminDashboard.dart'; // Ensure this import exists
+ import 'package:peerreview/config.dart';
 
 class CreateAssignment extends StatefulWidget {
   @override
@@ -69,7 +70,7 @@ class _CreateAssignmentState extends State<CreateAssignment> {
 
     try {
       final response = await http.get(
-        Uri.parse("http://192.168.168.45:5000/api/assignments"),
+        Uri.parse("'$apiBaseUrl/api/assignments"),
         headers: {"Content-Type": "application/json"},
       );
 
@@ -87,7 +88,7 @@ class _CreateAssignmentState extends State<CreateAssignment> {
       }
 
       final postResponse = await http.post(
-        Uri.parse("http://192.168.168.45:5000/api/assignments"),
+        Uri.parse("'$apiBaseUrl/api/assignments"),
         headers: {"Content-Type": "application/json"},
         body: json.encode(assignmentData),
       );

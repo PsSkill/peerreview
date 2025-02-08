@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'dart:async';
+ import 'package:peerreview/config.dart';
 
 class StudentDashboard extends StatefulWidget {
   @override
@@ -17,8 +18,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
   List<String?> selectedTitles = [];
   List<List<String?>> rankAssignments = [];
   List<String> studentNames = [];
-  Timer? _timer;
   int _start = 10;
+  Timer? _timer;
 
   void startTimer() {
     const oneSec = const Duration(seconds: 1);
@@ -41,12 +42,12 @@ class _StudentDashboardState extends State<StudentDashboard> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    fetchAssignments();
+    // fetchAssignments(); // This method is not defined in this class
     fetchUserName();
   }
 
   Future<void> fetchAssignments() async {
-  final url = Uri.parse("http://192.168.168.45:5001/api/assignments");
+  final url = Uri.parse("$apiBaseUrl/api/assignments");
 
   try {
     final response = await http.get(url);
@@ -95,7 +96,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
   }
 }
 Future<List<String>> fetchStudentNames(int count) async {
-  final url = Uri.parse("http://192.168.168.45:5000/api/student");
+  final url = Uri.parse("$apiBaseUrl/api/student");
 
   try {
     final response = await http.get(url);
@@ -124,7 +125,7 @@ Future<List<String>> fetchStudentNames(int count) async {
   Future<void> fetchUserName() async {
     try {
       final response =
-          await http.get(Uri.parse('http://192.168.168.45:5000/api/student'));
+          await http.get(Uri.parse('$apiBaseUrl/api/student'));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
@@ -625,11 +626,11 @@ class _RankAssignmentScreenState extends State<RankAssignmentScreen> {
   @override
   void initState() {
     super.initState();
-    fetchAssignments();
+    fetchAssignments(); // This method is not defined in this class
   }
 
   Future<void> postRankings() async {
-  final url = Uri.parse("http://192.168.168.45:5000/api/rank");
+  final url = Uri.parse("$apiBaseUrl/api/rank");
 
   List<String> taskIds = widget.taskDetails.map((task) => task['id'].toString()).toList();
 
@@ -703,7 +704,7 @@ void handleSubmit() async {
     }
   }
 
-  void handleSubmit() {
+  void submitRankings() {
     int score = (20 + (20 * (currentQuestionIndex / questions.length))).toInt();
     bool isEligible = score >= 20;
 
@@ -799,43 +800,39 @@ void handleSubmit() async {
                         child: Text("Validate  ID"),
                       ),
                       SizedBox(height: 20),
-                      Column(
-                        children: List.generate(5, (rankIndex) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4.0),
-                            child: Row(
-                              children: [
-                                Text(
-                                  "Rank ${rankIndex + 1}: ",
-                                  style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold),
-                                ),
-                                SizedBox(width: 20),
-                                Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: () =>
-                                        showStudentPicker(context, rankIndex),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white,
-                                      side: BorderSide(color: Colors.blue),
-                                    ),
-                                    child: Text(
-                                      rankAssignments[currentQuestionIndex]
-                                              [rankIndex] ??
-                                          "Select a student",
-                                      style: TextStyle(
-                                          fontSize: 16, color: Colors.black),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      ),
+                     Column(
+  children: List.generate(5, (rankIndex) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () => showStudentPicker(context, rankIndex),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                side: BorderSide(color: Colors.blue),
+              ),
+              child: Text(
+                rankAssignments[currentQuestionIndex][rankIndex] ?? "Select a student",
+                style: TextStyle(fontSize: 16, color: Colors.black),
+              ),
+            ),
+          ),
+          SizedBox(width: 20),
+          Text(
+            "Rank ${rankIndex + 1}",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }),
+),
+
                       SizedBox(height: 20),
-                     Center(
+Center(
   child: ElevatedButton(
     onPressed: goToNextQuestion,
     child: Text(
@@ -850,14 +847,13 @@ void handleSubmit() async {
       padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
     ),
   ),
-)
-
-                      ),
-                    ],
-                  ),
-                ),
+                          )        ],
+        ),
+      ),
     );
   }
+  
+  void fetchAssignments() {}
 }
 
 class ResultScreen extends StatelessWidget {
@@ -915,7 +911,7 @@ Future<void> validateId(BuildContext context, int currentQuestionIndex,
   }
 
   final url =
-      Uri.parse("http://192.168.168.45:5000/api/student?facultyId=$facultyId");
+      Uri.parse("$apiBaseUrl/api/student?facultyId=$facultyId");
 
   try {
     final response = await http.get(url);
@@ -941,5 +937,134 @@ Future<void> validateId(BuildContext context, int currentQuestionIndex,
       content: Text("Error: $e"),
       backgroundColor: Colors.red,
     ));
+  }
+}
+Future<void> fetchRankings() async {
+  final url = Uri.parse("$apiBaseUrl/api/get_rankings");
+  try {
+    final response = await http.get(url);
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      calculateScores(data);
+    } else {
+      print("Failed to fetch rankings");
+    }
+  } catch (e) {
+    print("Error fetching rankings: $e");
+  }
+}
+void calculateScores(List<dynamic> rankings) {
+  Map<String, int> studentScores = {};
+
+  for (var entry in rankings) {
+    String student = entry['student_name'];
+    int rank = entry['rank'];
+
+    // Assign points based on rank
+    int points = 0;
+    if (rank == 1) points = 4;
+    else if (rank == 2) points = 3;
+    else if (rank == 3) points = 2;
+    else if (rank == 4) points = 1;
+    else if (rank == 5) points = 0;
+
+    // Add points to student score
+    studentScores[student] = (studentScores[student] ?? 0) + points;
+  }
+
+  // Identify top 3 students
+  List<MapEntry<String, int>> sortedStudents = studentScores.entries.toList();
+  sortedStudents.sort((a, b) => b.value.compareTo(a.value));
+
+  List<String> topThree = sortedStudents.take(3).map((e) => e.key).toList();
+
+  // Penalize incorrect judges (if they placed a non-top-3 student in ranks 1-3)
+  for (var entry in rankings) {
+    String student = entry['student_name'];
+    int rank = entry['rank'];
+    if (rank <= 3 && !topThree.contains(student)) {
+      studentScores[student] = (studentScores[student] ?? 0) - 2; // Negative points
+    }
+  }
+
+  // Compute final results
+    displayResults(studentScores);
+  }
+  
+  void showResults(Map<String, int> studentScores) {
+    // Implement your logic to display the results here
+    studentScores.forEach((student, score) {
+      print('Student: $student, Score: $score');
+    });
+}
+void displayResults(Map<String, int> studentScores) {
+  List<MapEntry<String, int>> sortedStudents = studentScores.entries.toList();
+  sortedStudents.sort((a, b) => b.value.compareTo(a.value));
+
+  int maxPossibleScore = 4 * studentScores.length; // Max points = 4 * num students
+
+  print("Final Scores:");
+  for (var entry in sortedStudents) {
+    String student = entry.key;
+    int score = entry.value;
+    double percentage = (score / maxPossibleScore) * 100;
+
+    bool passed = percentage >= 50;
+    print("$student - Score: $score (${percentage.toStringAsFixed(2)}%) - ${passed ? "✅ Passed" : "❌ Failed"}");
+
+    if (passed) {
+      postResults(student, score, passed);
+    }
+  }
+}
+
+Future<void> submitResults(String student, int score, bool passed) async {
+  final url = Uri.parse("$apiBaseUrl/api/results");
+  final resultData = {
+    "student": student,
+    "score": score,
+    "passed": passed,
+  };
+
+  try {
+    final response = await http.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: json.encode(resultData),
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      print("Results posted successfully for $student");
+    } else {
+      print("Failed to post results for $student");
+    }
+  } catch (e) {
+    print("Error posting results: $e");
+  }
+}
+
+Future<void> postResults(String student, int score, bool passed) async {
+  final url = Uri.parse("$apiBaseUrl/api/post_results");
+
+  Map<String, dynamic> resultData = {
+    "student_name": student,
+    "score": score,
+    "status": passed ? "Passed" : "Failed",
+  };
+
+  try {
+    final response = await http.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: json.encode(resultData),
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      print("Result posted successfully for $student");
+    } else {
+      print("Failed to post result for $student");
+    }
+  } catch (e) {
+    print("Error posting result: $e");
   }
 }

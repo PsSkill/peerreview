@@ -6,6 +6,8 @@ import 'package:peerreview/Admin/adminDashboard.dart';
 import 'package:peerreview/LoginScreen.dart';
 import 'package:peerreview/Loginstudent.dart';
 import 'package:peerreview/students/Questions.dart';
+import 'package:peerreview/students/RankAssignmentScreen.dart'; // Add this line
+// import 'package:peerreview/students/AttendanceScreen.dart'; // Add this line
 
 void main() {
   runApp(MyApp());
@@ -24,10 +26,12 @@ class MyApp extends StatelessWidget {
         '/studentLogin': (context) => LoginScreenStudents(),
         '/createAssignment': (context) => CreateAssignment(),
         '/detailPage': (context) => DetailPage(assignment: {}), 
-        '/questions': (context) => QuestionsScreen(),
-        '/resultScreen': (context) => ResultScreen(),
+        '/questions': (context) => QuestionsScreen(navigateToDataEntryScreen: (data) {
+          // Add your navigation logic here
+        }),
+        '/resultScreen': (context) => ResultScreen(score: 0, isEligible: false),
         '/ranking': (context) => RankAssignmentScreen(),
-        '/attendance': (context) => AttendanceScreen(),
+        // '/attendance': (context) => AttendanceScreen(),
       },
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+ import 'package:peerreview/config.dart';
 
 class RankAssignmentScreen extends StatefulWidget {
   @override
@@ -24,7 +25,7 @@ class _RankAssignmentScreenState extends State<RankAssignmentScreen> {
   // Fetch Assignment Details
   Future<void> fetchAssignmentDetails() async {
     try {
-      final response = await http.get(Uri.parse('http://192.168.168.45:5001/api/assignments'));
+      final response = await http.get(Uri.parse('$apiBaseUrl/api/assignment'));
       if (response.statusCode == 200) {
         final data = json.decode(response.body)[0]; // First assignment
         setState(() {
@@ -43,7 +44,7 @@ class _RankAssignmentScreenState extends State<RankAssignmentScreen> {
   // Fetch Student Details
   Future<void> fetchStudentDetails() async {
     try {
-      final response = await http.get(Uri.parse('http://192.168.168.45:5000/api/student'));
+      final response = await http.get(Uri.parse('$apiBaseUrl/api/student'));
       if (response.statusCode == 200) {
         setState(() {
           students = List<Student>.from(json.decode(response.body).map((json) => Student.fromJson(json)));
@@ -61,7 +62,7 @@ class _RankAssignmentScreenState extends State<RankAssignmentScreen> {
     for (var task in tasks) {
       rankings[task.taskId]?.forEach((rankedStudentId, rankGiven) async {
         final response = await http.post(
-          Uri.parse('http://192.168.168.45:5002/api/rank'),
+          Uri.parse('$apiBaseUrl/api/rank'),
           headers: {"Content-Type": "application/json"},
           body: json.encode({
             "ranker_id": 1, // Assume logged-in student's ID
@@ -115,7 +116,7 @@ class _RankAssignmentScreenState extends State<RankAssignmentScreen> {
       String resultStatus = (studentPoints >= (0.5 * averagePoints)) ? "pass" : "fail";
 
       final response = await http.post(
-        Uri.parse('http://192.168.168.45:5002/api/result'),
+        Uri.parse('$apiBaseUrl/api/result'),
         headers: {"Content-Type": "application/json"},
         body: json.encode({
           "student_id": student.facultyId,

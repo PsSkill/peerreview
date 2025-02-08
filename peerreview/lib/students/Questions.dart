@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+ import 'package:peerreview/config.dart';
 
 class QuestionsScreen extends StatefulWidget {
   final Function navigateToDataEntryScreen;
@@ -29,7 +30,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
 
   Future<void> fetchAssignments() async {
     try {
-      final response = await fetch('http://192.168.168.45:5001/api/assignments');
+      final response = await fetch('$apiBaseUrl/api/assignment');
       final data = json.decode(response.body);
       setState(() {
         assignments = data;
