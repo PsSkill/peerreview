@@ -1,181 +1,149 @@
-hi ineed to implement a logic as if i start the assesment as it shws the task after that it redirect to ranking page in that get get the number of total students and number of ranks and number of task using this api  "id": 5,
-        "title": "Hxh",
-        "date": "2025-02-01T18:30:00.000Z",
-        "start_time": "20:54:11",
-        "stop_time": "20:54:11",
-        "explanation": "Hdb",
-        "number_of_students": 2,
-        "numberoftasks": 1,
-        "task_details": "[{\"task_title\":\"Gh\",\"task_time\":\"50 min\"}]",
-        "total_time": "00:00:50",
-        "numberofranks": 1
-    },
-and each student need to  give the rank to others except them  first store who is ranking to whom for student details use this api http://192.168.168.45:5000/api/student
-   },
-    {
-        "facultyId": 17689,
-        "emailId": "kamatchi.ad23@bitsathy.ac.in"
-    },
-SCENARIO:IF I completed ll ranking procedure acording to the number of task  as it need to store in the sql table as the all students rank for al task store in the table and now its calculation get the all task 1 ranks given by other members if there is 5 ranks rank 1 get 4 points rank 2 get 3 points rank 3 gets 2 points rank 5 gets 0  points make according to the ranks  as calculate the average by adding the points in the table if i am speaking other 4 members rank me as they gave me 1 rank so i got 20 points like wise calculate who is on average and store in the otherr table alculate for the other tasks and store in the table if the   students judjed correctly and if they judged people come on top 3 they dont get negative points and i cant vote for myself  after if they secured is less than 50 percentage of average they need to be failed and show an message if they passed show you cleared this 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'dart:async';
+ import 'package:peerreview/config.dart';
 
-class RankAssignmentScreen extends StatefulWidget {
+class StudentDashboard extends StatefulWidget {
   @override
-  _RankAssignmentScreenState createState() => _RankAssignmentScreenState();
+  _StudentDashboardState createState() => _StudentDashboardState();
 }
 
-class _RankAssignmentScreenState extends State<RankAssignmentScreen> {
-  List<Task> tasks = [];
-  List<Student> students = [];
-  Map<int, Map<int, int>> rankings = {}; // {task_id: {ranked_student_id: rank_given}}
-  int totalStudents = 0;
-  int numberOfTasks = 0;
+class _StudentDashboardState extends State<StudentDashboard> {
+  List<dynamic> assignments = [];
+  String? userName;
+  List<String> assignmentTitles = [];
+  List<String> questions = [];
+  bool isLoading = true;
+  List<String?> selectedTitles = [];
+  List<List<String?>> rankAssignments = [];
+  List<String> studentNames = [];
+  Timer? _timer;
+  int _start = 10;
+
+  void startTimer() {
+    const oneSec = const Duration(seconds: 1);
+    _timer = new Timer.periodic(
+      oneSec,
+      (Timer timer) {
+        if (_start == 0) {
+          setState(() {
+            timer.cancel();
+          });
+        } else {
+          setState(() {
+            _start--;
+          });
+        }
+      },
+    );
+  }
 
   @override
-  void initState() {
-    super.initState();
-    fetchAssignmentDetails();
-    fetchStudentDetails();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    fetchAssignments();
+    fetchUserName();
   }
 
-  // Fetch Assignment Details
-  Future<void> fetchAssignmentDetails() async {
-    try {
-      final response = await http.get(Uri.parse('http://192.168.168.45:5001/api/assignments'));
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body)[0]; // First assignment
-        setState(() {
-          totalStudents = data['number_of_students'];
-          numberOfTasks = data['numberoftasks'];
-          tasks = List<Task>.from(json.decode(data['task_details']).map((task) => Task.fromJson(task)));
-        });
-      } else {
-        throw Exception('Failed to load assignment details');
+  Future<void> fetchAssignments() async {
+  final url = Uri.parse("$apiBaseUrl:/api/assignment");
+
+  try {
+    final response = await http.get(url);
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      int numberOfTasks = data["numberoftasks"] ?? 5;
+      int numberOfStudents = data["number_of_students"] ?? 5; // Get the student count
+      List<String> titles = (data["assignments"] as List<dynamic>)
+          .map((assignment) => assignment["title"].toString())
+          .toList();
+
+      if (numberOfTasks == 0 || titles.isEmpty) {
+        throw Exception("No tasks or titles found.");
       }
-    } catch (e) {
-      print('Error fetching assignment details: $e');
-    }
-  }
 
-  // Fetch Student Details
-  Future<void> fetchStudentDetails() async {
-    try {
-      final response = await http.get(Uri.parse('http://192.168.168.45:5000/api/student'));
-      if (response.statusCode == 200) {
-        setState(() {
-          students = List<Student>.from(json.decode(response.body).map((json) => Student.fromJson(json)));
-        });
-      } else {
-        throw Exception('Failed to load student details');
-      }
-    } catch (e) {
-      print('Error fetching student details: $e');
-    }
-  }
+      // Fetch student names dynamically
+      List<String> students = await fetchStudentNames(numberOfStudents);
 
-  // Store Rankings in API
-  Future<void> submitRankings() async {
-    for (var task in tasks) {
-      rankings[task.taskId]?.forEach((rankedStudentId, rankGiven) async {
-        final response = await http.post(
-          Uri.parse('http://192.168.168.45:5002/api/rank'),
-          headers: {"Content-Type": "application/json"},
-          body: json.encode({
-            "ranker_id": 1, // Assume logged-in student's ID
-            "ranked_student_id": rankedStudentId,
-            "task_id": task.taskId,
-            "rank_given": rankGiven,
-          }),
-        );
-
-        if (response.statusCode != 200) {
-          print("Failed to submit ranking for student $rankedStudentId");
-        }
+      setState(() {
+        questions = List.generate(numberOfTasks,
+            (index) => "Who is the most suitable for Task ${index + 1}?");
+        assignmentTitles = titles;
+        selectedTitles = List.filled(numberOfTasks, null);
+        rankAssignments =
+            List.generate(numberOfTasks, (_) => List.filled(numberOfStudents, null));
+        studentNames.clear();
+        studentNames.addAll(students);
+        isLoading = false;
       });
-    }
 
-    calculateResults();
+      startTimer();
+    } else {
+      throw Exception("Failed to load data");
+    }
+  } catch (e) {
+    print("Error fetching tasks: $e");
+    setState(() {
+      questions = List.generate(
+          5, (index) => "Who is the most suitable for Task ${index + 1}?");
+      assignmentTitles = ["Default Assignment 1", "Default Assignment 2"];
+      selectedTitles = List.filled(5, null);
+      rankAssignments = List.generate(5, (_) => List.filled(5, null));
+      studentNames = ["Default Student 1", "Default Student 2"];
+      isLoading = false;
+    });
+  }
+}
+Future<List<String>> fetchStudentNames(int count) async {
+  final url = Uri.parse("$apiBaseUrl/api/student");
+
+  try {
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final List<dynamic> students = json.decode(response.body);
+
+      // Extract faculty IDs and email IDs
+      List<String> studentList = students
+          .take(count) // Get only required number of students
+          .map((student) => student["emailId"].toString()) // Use email as name
+          .toList();
+
+      return studentList;
+    } else {
+      throw Exception("Failed to fetch student names.");
+    }
+  } catch (e) {
+    print("Error fetching student names: $e");
+    return ["Default Student"];
+  }
+}
+
+
+  // Fetch user name from the API
+  Future<void> fetchUserName() async {
+    try {
+      final response =
+          await http.get(Uri.parse('$apiBaseUrl/api/student'));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          userName = data['name'];
+        });
+      } else {
+        throw Exception('Failed to load user details');
+      }
+    } catch (e) {
+      print('Error fetching user details: $e');
+    }
   }
 
-  // Calculate Total Points & Store Result
-  Future<void> calculateResults() async {
-    Map<int, int> studentTotalPoints = {};
-    for (var student in students) {
-      studentTotalPoints[student.facultyId] = 0;
-    }
-
-    // Assign Points Based on Ranking
-    for (var task in tasks) {
-      var taskRankings = rankings[task.taskId] ?? {};
-      var sortedRanks = taskRankings.entries.toList()
-        ..sort((a, b) => a.value.compareTo(b.value)); // Sort by rank
-
-      for (var i = 0; i < sortedRanks.length; i++) {
-        int studentId = sortedRanks[i].key;
-        int rank = sortedRanks[i].value;
-
-        if (rank == 1) studentTotalPoints[studentId] = (studentTotalPoints[studentId] ?? 0) + 4;
-        else if (rank == 2) studentTotalPoints[studentId] = (studentTotalPoints[studentId] ?? 0) + 3;
-        else if (rank == 3) studentTotalPoints[studentId] = (studentTotalPoints[studentId] ?? 0) + 2;
-        else if (rank == 4) studentTotalPoints[studentId] = (studentTotalPoints[studentId] ?? 0) + 1;
-        else studentTotalPoints[studentId] = (studentTotalPoints[studentId] ?? 0) + 0;
-      }
-    }
-
-    // Calculate Average Points
-    int totalPoints = studentTotalPoints.values.reduce((a, b) => a + b);
-    double averagePoints = totalPoints / totalStudents;
-
-    // Store Results in API
-    for (var student in students) {
-      int studentPoints = studentTotalPoints[student.facultyId] ?? 0;
-      String resultStatus = (studentPoints >= (0.5 * averagePoints)) ? "pass" : "fail";
-
-      final response = await http.post(
-        Uri.parse('http://192.168.168.45:5002/api/result'),
-        headers: {"Content-Type": "application/json"},
-        body: json.encode({
-          "student_id": student.facultyId,
-          "total_points": studentPoints,
-          "average_points": averagePoints,
-          "result_status": resultStatus,
-        }),
-      );
-
-      if (response.statusCode != 200) {
-        print("Failed to submit result for student ${student.facultyId}");
-      }
-    }
-
-    // Show final result message
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Ranking Completed"),
-        content: Text("Results have been saved successfully!"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text("OK"))
-        ],
+  void navigateToAssignmentDetails(Map<String, dynamic> assignment) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AssignmentDetailsPage(assignment: assignment),
       ),
     );
   }
@@ -183,27 +151,38 @@ class _RankAssignmentScreenState extends State<RankAssignmentScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Rank Assignment')),
+      appBar: AppBar(
+        title: Text('Student Dashboard'),
+        backgroundColor: Color(0xFF2b4f87),
+      ),
       body: Padding(
         padding: EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Tasks:', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            ...tasks.map((task) => ListTile(title: Text(task.taskTitle), subtitle: Text('Duration: ${task.taskTime}'))),
+            Text(
+              userName != null ? 'WELCOME $userName' : 'WELCOME',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2b4f87),
+              ),
+            ),
             SizedBox(height: 20),
-            Text('Rank Students:', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            ...students.map((student) => RankInputCard(
-                  student: student,
-                  onRankChanged: (taskId, rank) {
-                    setState(() {
-                      rankings[taskId] ??= {};
-                      rankings[taskId]![student.facultyId] = rank;
-                    });
-                  },
-                )),
-            SizedBox(height: 20),
-            ElevatedButton(onPressed: submitRankings, child: Text('Submit Ranking')),
+            Expanded(
+              child: ListView.builder(
+                itemCount: assignments.length,
+                itemBuilder: (context, index) {
+                  final assignment = assignments[index];
+                  return TitleCard(
+                    title: assignment['title'],
+                    date: assignment['date'],
+                    time: assignment['start_time'],
+                    buttonText: 'View Details',
+                    onPress: () => navigateToAssignmentDetails(assignment),
+                  );
+                },
+              ),
+            ),
           ],
         ),
       ),
@@ -211,12 +190,20 @@ class _RankAssignmentScreenState extends State<RankAssignmentScreen> {
   }
 }
 
-// Rank Input Card
-class RankInputCard extends StatelessWidget {
-  final Student student;
-  final Function(int, int) onRankChanged;
+class TitleCard extends StatelessWidget {
+  final String title;
+  final String date;
+  final String time;
+  final String buttonText;
+  final VoidCallback onPress;
 
-  RankInputCard({required this.student, required this.onRankChanged});
+  TitleCard({
+    required this.title,
+    required this.date,
+    required this.time,
+    required this.buttonText,
+    required this.onPress,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -224,46 +211,984 @@ class RankInputCard extends StatelessWidget {
       margin: EdgeInsets.only(bottom: 10),
       elevation: 3,
       child: ListTile(
-        title: Text(student.name),
-        subtitle: Row(
-          children: List.generate(5, (index) {
-            int rank = index + 1;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-              child: ElevatedButton(
-                onPressed: () => onRankChanged(1, rank), // Assume task_id = 1
-                child: Text('$rank'),
-              ),
-            );
-          }),
+        title: Text(
+          title,
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Date: $date'),
+            Text('Start Time: $time'),
+          ],
+        ),
+        trailing: ElevatedButton(
+          onPressed: onPress,
+          child: Text(buttonText),
         ),
       ),
     );
   }
 }
 
-// Task Model
-class Task {
-  final int taskId;
+class AssignmentDetailsPage extends StatefulWidget {
+  final Map<String, dynamic> assignment;
+
+  AssignmentDetailsPage({required this.assignment});
+
+  @override
+  _AssignmentDetailsPageState createState() => _AssignmentDetailsPageState();
+}
+
+class _AssignmentDetailsPageState extends State<AssignmentDetailsPage> {
+  late List<dynamic> taskDetails;
+  int currentTaskIndex = 0;
+  bool isTaskStarted = false;
+  late Timer taskTimer = Timer.periodic(Duration(seconds: 1), (timer) {});
+  int remainingTime = 0;
+
+  // Track completed tasks
+  List<bool> taskCompletionStatus = [];
+
+  @override
+  void initState() {
+    super.initState();
+    taskDetails =
+        jsonDecode(widget.assignment['task_details']); // Decode JSON string
+    taskCompletionStatus = List.generate(taskDetails.length,
+        (index) => false); // Initialize all tasks as not completed
+  }
+
+  // Start the task timer
+  void _startTask() {
+    if (currentTaskIndex < taskDetails.length) {
+      setState(() {
+        isTaskStarted = true;
+        remainingTime = _parseTime(
+            taskDetails[currentTaskIndex]['task_time']); // Convert to seconds
+      });
+
+      // Cancel existing timer before starting a new one
+      taskTimer.cancel();
+
+      // Timer updates every second
+      taskTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+        setState(() {
+          if (remainingTime > 0) {
+            remainingTime--; // Reduce time by 1 second
+          } else {
+            // Mark task as completed
+            taskCompletionStatus[currentTaskIndex] = true;
+
+            // Move to the next task
+            if (currentTaskIndex < taskDetails.length - 1) {
+              currentTaskIndex++;
+              remainingTime =
+                  _parseTime(taskDetails[currentTaskIndex]['task_time']);
+            } else {
+              // All tasks completed, stop the timer
+              taskTimer.cancel();
+              isTaskStarted = false;
+              showDialog(
+                context: context,
+                builder: (context) {
+                  return AlertDialog(
+                    title: Text("Task Completed"),
+                    content: Text("You have completed all tasks."),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => RankAssignmentScreen(
+                                taskDetails:
+                                    taskDetails, // Pass the task details list
+                                onSubmit: (score, isEligible) {
+                                  print('Score: $score, Eligible: $isEligible');
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                        child: Text("OK"),
+                      ),
+                    ],
+                  );
+                },
+              );
+            }
+          }
+        });
+      });
+    }
+  }
+
+  // Helper function to parse the time (e.g., "5 min" or "10 sec")
+  int _parseTime(String timeString) {
+    final timeRegExp = RegExp(r'(\d+)'); // Extract digits
+    final match = timeRegExp.firstMatch(timeString);
+
+    if (match != null) {
+      int value = int.parse(match.group(0)!);
+
+      // Check if the string contains 'min' or 'sec' and convert accordingly
+      if (timeString.contains('min')) {
+        return value * 60; // Convert minutes to seconds
+      } else {
+        return value; // Return as is if already in seconds
+      }
+    }
+
+    return 0; // Default return 0 if parsing fails
+  }
+
+  @override
+  void dispose() {
+    taskTimer.cancel();
+    super.dispose();
+  }
+
+  // Show terms and conditions dialog
+  void _showTermsAndConditions() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text("Terms and Conditions"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text("1. No backward option is enabled."),
+              Text("2. Copy-paste is disabled."),
+              Text("3. No switching tabs."),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Close the dialog
+                print("User disagreed.");
+              },
+              child: Text("Disagree"),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Close the dialog
+                _startTask(); // Start the task if the user agrees
+                print("User agreed.");
+              },
+              child: Text("Agree"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.assignment['title']),
+        backgroundColor: Color(0xFF2b4f87),
+      ),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDetailCard(
+                title: 'Assignment Details',
+                children: [
+                  _buildDetailRow('Date', widget.assignment['date']),
+                  _buildDetailRow(
+                      'Start Time', widget.assignment['start_time']),
+                  _buildDetailRow('Stop Time', widget.assignment['stop_time']),
+                  _buildDetailRow(
+                      'Total Time', widget.assignment['total_time']),
+                ],
+              ),
+              SizedBox(height: 10),
+              _buildDetailCard(
+                title: 'Explanation',
+                children: [
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8.0),
+                    child: Text(
+                      widget.assignment['explanation'],
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 10),
+              _buildDetailCard(
+                title: 'Tasks',
+                showTimer: true, // Show live timer inside this card
+                children: taskDetails.map((task) {
+                  int taskIndex = taskDetails.indexOf(task);
+                  bool isCompleted = taskCompletionStatus[taskIndex];
+                  return TaskCard(
+                    taskTitle: task['task_title'],
+                    taskTime: task['task_time'],
+                    remainingTime: remainingTime, // Show decreasing time
+                    isTaskCompleted: isCompleted,
+                  );
+                }).toList(),
+              ),
+
+              SizedBox(height: 20),
+              Center(
+                child: ElevatedButton(
+                  onPressed:
+                      _showTermsAndConditions, // Calls the method to show the dialog
+                  child: Text('Start Now'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color.fromARGB(255, 191, 209, 238),
+                    padding: EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                    textStyle:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              SizedBox(height: 20),
+              // Display remaining time only at the bottom
+              if (isTaskStarted)
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => RankAssignmentScreen(
+                          taskDetails:
+                              taskDetails, // Pass the task details list
+                          onSubmit: (score, isEligible) {
+                            print('Score: $score, Eligible: $isEligible');
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                  child: Text('Go to Rankings'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    textStyle:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Builds a detailed card widget with a title and a list of child widgets.
+  ///
+  /// The card includes an optional timer display if [showTimer] is true and
+  /// the task is started. The timer shows a countdown in seconds, changing
+  /// color to red when time is low.
+  ///
+  /// Parameters:
+  /// - [title]: The title text displayed at the top of the card.
+  /// - [children]: A list of widgets to be displayed inside the card.
+  /// - [showTimer]: A boolean indicating whether to show a timer, default is false.
+  Widget _buildDetailCard(
+      {required String title,
+      required List<Widget> children,
+      bool showTimer = false}) {
+    return Card(
+      margin: EdgeInsets.only(bottom: 10),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: Padding(
+        padding: EdgeInsets.all(15),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                if (showTimer && isTaskStarted) // Show timer when task starts
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade100,
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Text(
+                      'Timer: $remainingTime sec', // Show live countdown in seconds
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: remainingTime <= 10 ? Colors.red : Colors.black,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            Divider(),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 5.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          Text(value),
+        ],
+      ),
+    );
+  }
+}
+
+class TaskCard extends StatelessWidget {
   final String taskTitle;
   final String taskTime;
+  final int remainingTime;
+  final bool isTaskCompleted; // Add a flag for completion
 
-  Task({required this.taskId, required this.taskTitle, required this.taskTime});
+  TaskCard({
+    required this.taskTitle,
+    required this.taskTime,
+    required this.remainingTime,
+    required this.isTaskCompleted, // Add a flag for completion
+  });
 
-  factory Task.fromJson(Map<String, dynamic> json) {
-    return Task(taskId: json['task_id'], taskTitle: json['task_title'], taskTime: json['task_time']);
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.only(bottom: 8),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      color: isTaskCompleted
+          ? Colors.green
+          : Colors.white, // Change color based on completion status
+      child: ListTile(
+        contentPadding: EdgeInsets.all(10),
+        title: Text(
+          taskTitle,
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text('Task Time: $taskTime'),
+      ),
+    );
   }
 }
 
-// Student Model
-class Student {
-  final int facultyId;
-  final String emailId;
-  String get name => emailId.split('@')[0];
+class RankAssignmentScreen extends StatefulWidget {
+  final Function(int score, bool isEligible) onSubmit;
 
-  Student({required this.facultyId, required this.emailId});
+  RankAssignmentScreen({required this.taskDetails, required this.onSubmit});
 
-  factory Student.fromJson(Map<String, dynamic> json) {
-    return Student(facultyId: json['facultyId'], emailId: json['emailId']);
+  final List<dynamic> taskDetails;
+
+  @override
+  _RankAssignmentScreenState createState() => _RankAssignmentScreenState();
+}
+
+class _RankAssignmentScreenState extends State<RankAssignmentScreen> {
+  List<String> questions = [];
+  List<String> assignmentTitles = [];
+  List<String?> selectedTitles = [];
+  final List<String> studentNames = [
+    "Student A",
+    "Student B",
+    "Student C",
+    "Student D",
+    "Student E"
+  ];
+
+  List<List<String?>> rankAssignments = [];
+  int currentQuestionIndex = 0;
+  int timer = 30;
+  Timer? countdownTimer;
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchAssignments();
+  }
+
+  Future<void> fetchAssignments() async {
+    // Add your implementation here
+  }
+
+  Future<void> postRankings() async {
+  final url = Uri.parse("$apiBaseUrl/api/rank");
+
+  List<String> taskIds = widget.taskDetails.map((task) => task['id'].toString()).toList();
+
+  for (int i = 0; i < taskIds.length; i++) {
+    String? facultyId = selectedTitles[i]; // The entered faculty ID
+    if (facultyId == null || facultyId.isEmpty) continue;
+
+    Map<String, dynamic> rankData = {
+      "assignment_id": taskIds[i], // Use the corresponding task ID
+      "faculty_id": facultyId,
+      "task_number": i + 1,
+      "rank_1": rankAssignments[i][0] ?? "",
+      "rank_2": rankAssignments[i][1] ?? "",
+      "rank_3": rankAssignments[i][2] ?? "",
+      "rank_4": rankAssignments[i][3] ?? "",
+      "rank_5": rankAssignments[i][4] ?? "",
+    };
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: json.encode(rankData),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print("Ranking submitted successfully for Task ${i + 1}");
+      } else {
+        print("Failed to submit ranking for Task ${i + 1}");
+      }
+    } catch (e) {
+      print("Error submitting ranking: $e");
+    }
   }
 }
+
+void handleSubmit() async {
+  await postRankings();
+
+  int score = (20 + (20 * (currentQuestionIndex / questions.length))).toInt();
+  bool isEligible = score >= 20;
+
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => ResultScreen(score: score, isEligible: isEligible),
+    ),
+  );
+}
+
+  void startTimer() {
+    countdownTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+      if (this.timer == 0) {
+        goToNextQuestion();
+      } else {
+        setState(() {
+          this.timer--;
+        });
+      }
+    });
+  }
+
+  void goToNextQuestion() {
+    if (currentQuestionIndex < questions.length - 1) {
+      setState(() {
+        currentQuestionIndex++;
+        timer = 30;
+      });
+    } else {
+      handleSubmit();
+    }
+  }
+
+  void handleSubmitRankings() {
+    int score = (20 + (20 * (currentQuestionIndex / questions.length))).toInt();
+    bool isEligible = score >= 20;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            ResultScreen(score: score, isEligible: isEligible),
+      ),
+    );
+  }
+
+  void showStudentPicker(BuildContext context, int rankIndex) {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext ctx) {
+        return Container(
+          padding: EdgeInsets.all(10),
+          child: ListView.builder(
+            itemCount: studentNames.length,
+            itemBuilder: (ctx, index) {
+              return ListTile(
+                title: Text(studentNames[index]),
+                onTap: () {
+                  setState(() {
+                    rankAssignments[currentQuestionIndex][rankIndex] =
+                        studentNames[index];
+                  });
+                  Navigator.pop(ctx);
+                },
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    countdownTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("Rank Assignment"),
+        backgroundColor: Color(0xFF2b4f87),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: isLoading
+          ? Center(child: CircularProgressIndicator())
+          : questions.isEmpty
+              ? Center(child: Text("No tasks available"))
+              : Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(height: 20),
+                      Text(
+                        questions[currentQuestionIndex],
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 10),
+                      Text(
+                        "Enter   ID:",
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      TextField(
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          hintText: "Enter Faculty ID",
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedTitles[currentQuestionIndex] =
+                                value; // Store entered faculty ID
+                          });
+                        },
+                      ),
+                      ElevatedButton(
+                        onPressed: () => validateId(
+                            context, currentQuestionIndex, selectedTitles),
+                        child: Text("Validate  ID"),
+                      ),
+                      SizedBox(height: 20),
+                      Column(
+                        children: List.generate(5, (rankIndex) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: Row(
+                              children: [
+                                Text(
+                                  "Rank ${rankIndex + 1}: ",
+                                  style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                SizedBox(width: 20),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: () =>
+                                        showStudentPicker(context, rankIndex),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.white,
+                                      side: BorderSide(color: Colors.blue),
+                                    ),
+                                    child: Text(
+                                      rankAssignments[currentQuestionIndex]
+                                              [rankIndex] ??
+                                          "Select a student",
+                                      style: TextStyle(
+                                          fontSize: 16, color: Colors.black),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ),
+                      SizedBox(height: 20),
+                     Center(
+  child: ElevatedButton(
+    onPressed: goToNextQuestion,
+    child: Text(
+      currentQuestionIndex < questions.length - 1
+          ? "Next Question"
+          : "Submit Assignments",
+      style: TextStyle(fontSize: 18),
+    ),
+    style: ElevatedButton.styleFrom(
+      backgroundColor: Colors.blueAccent,
+      foregroundColor: Colors.white,
+      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+    ),
+  ),
+)
+
+                      ),
+                    ],
+                  ),
+                ),
+    );
+  }
+}
+
+class ResultScreen extends StatelessWidget {
+  final int score;
+  final bool isEligible;
+
+  ResultScreen({required this.score, required this.isEligible});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("Result"),
+        backgroundColor: Color(0xFF2b4f87),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              "Your Score: $score",
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 20),
+            Text(
+              isEligible ? "You are eligible!" : "You are not eligible",
+              style: TextStyle(
+                  fontSize: 20, color: isEligible ? Colors.green : Colors.red),
+            ),
+            SizedBox(height: 30),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text("Back to Home"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> validateId(BuildContext context, int currentQuestionIndex,
+    List<String?> selectedTitles) async {
+  String? facultyId = selectedTitles[currentQuestionIndex];
+
+  if (facultyId == null || facultyId.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text("Please enter a  ID."),
+    ));
+    return;
+  }
+
+  final url =
+      Uri.parse("$apiBaseUrl/api/student?facultyId=$facultyId");
+
+  try {
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(" ID is valid!"),
+          backgroundColor: Colors.green,
+        ));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text("Invalid  ID."),
+          backgroundColor: Colors.red,
+        ));
+      }
+    } else {
+      throw Exception("Failed to validate  ID.");
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text("Error: $e"),
+      backgroundColor: Colors.red,
+    ));
+  }
+}
+
+
+
+
+
+const express = require('express');
+const mysql = require('mysql');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+
+const app = express();
+const port = 5001;
+
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
+
+// MySQL connection
+const db = mysql.createConnection({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+});
+// Connect to MySQL
+db.connect((err) => {
+  if (err) {
+    console.error('Error connecting to MySQL:', err);
+  } else {
+    console.log('Connected to MySQL database');
+  }
+});
+
+app.post('/api/assignment', (req, res) => {
+    const { title, date, startTime, stopTime } = req.body;
+  
+    // Validate title
+    if (!title || typeof title !== 'string') {
+      return res.status(400).json({ error: 'Title is required and must be a string' });
+    }
+  
+    const query = 'INSERT INTO assignment (title, date, start_time, stop_time) VALUES (?, ?, ?, ?)';
+    db.query(query, [title, date, startTime, stopTime], (err, result) => {
+      if (err) {
+        console.error('Error creating assignment:', err);
+        res.status(500).json({ error: 'Something went wrong' });
+      } else {
+        res.status(201).json({ id: result.insertId, title, date, startTime, stopTime });
+      }
+    });
+  });
+// Get all assignments
+app.get('/api/assignment', (req, res) => {
+  const query = 'SELECT * FROM assignments';
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching assignments:', err);
+      res.status(500).json({ error: 'Something went wrong' });
+    } else {
+      res.status(200).json(results);
+    }
+  });
+});
+
+// Create a new task for an assignment
+app.post('/api/tasks', (req, res) => {
+  const { assignmentId, taskTitle, taskTime } = req.body;
+  const query = 'INSERT INTO tasks (assignment_id, task_title, task_time) VALUES (?, ?, ?)';
+  db.query(query, [assignmentId, taskTitle, taskTime], (err, result) => {
+    if (err) {
+      console.error('Error creating task:', err);
+      res.status(500).json({ error: 'Something went wrong' });
+    } else {
+      res.status(201).json({ id: result.insertId, assignmentId, taskTitle, taskTime });
+    }
+  });
+});
+
+// Get tasks for a specific assignment
+app.get('/api/tasks/:assignmentId', (req, res) => {
+  const { assignmentId } = req.params;
+  const query = 'SELECT * FROM tasks WHERE assignment_id = ?';
+  db.query(query, [assignmentId], (err, results) => {
+    if (err) {
+      console.error('Error fetching tasks:', err);
+      res.status(500).json({ error: 'Something went wrong' });
+    } else {
+      res.status(200).json(results);
+    }
+  });
+});
+ app.get('/api/student', (req, res) => {
+  const query = 'SELECT *FROM student';
+  
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching student details:', err);
+      res.status(500).json({ error: 'Something went wrong' });
+    } else {
+      res.status(200).json(results);
+    }
+  });
+});
+// Get all faculty details
+app.get('/api/faculty', (req, res) => {
+  const query = 'SELECT * FROM faculty';
+
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching faculty details:', err);
+      res.status(500).json({ error: 'Something went wrong' });
+    } else {
+      res.status(200).json(results);
+    }
+  });
+});
+app.get('/api/student', (req, res) => {
+  const query = 'SELECT * FROM students';
+
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching faculty details:', err);
+      res.status(500).json({ error: 'Something went wrong' });
+    } else {
+      res.status(200).json(results);
+    }
+  });
+});
+app.get('/api/questions', (req, res) => {
+  const query = 'SELECT * FROM questions';
+
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching   details:', err);
+      res.status(500).json({ error: 'Something went wrong' });
+    } else {
+      res.status(200).json(results);
+    }
+  });
+});
+app.get('/api/rank', (req, res) => {
+  const query = 'SELECT * FROM rankassignments';
+
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching   details:', err);
+      res.status(500).json({ error: 'Something went wrong' });
+    } else {
+      res.status(200).json(results);
+    }
+  });
+});
+app.get('/api/students', (req, res) => {
+  const query = 'SELECT id, name FROM students'; // Assuming `students` table has columns `id` and `name`
+
+  connection.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching student names:', err);
+      return res.status(500).json({ error: 'Failed to retrieve students' });
+    }
+    res.status(200).json(results);
+  });
+});
+
+// API endpoint to save assignment data
+app.post('/api/assignment', (req, res) => {
+  const { title, date, start_time, stop_time, explanation, number_of_students, numberoftasks, numberofranks, task_details, total_time } = req.body;
+
+  const query = `
+    INSERT INTO assignment (
+      title, date, start_time, stop_time, explanation, number_of_students, numberoftasks, numberofranks, task_details, total_time
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+
+  connection.query(
+    query,
+    [title, date, start_time, stop_time, explanation, number_of_students, numberoftasks, numberofranks, JSON.stringify(task_details), total_time],
+    (err, results) => {
+      if (err) {
+        console.error('Error inserting data:', err);
+        return res.status(500).json({ error: 'Failed to save assignment' });
+      }
+      res.status(201).json({ message: 'Assignment saved successfully', id: results.insertId });
+    }
+  );
+});
+
+// API endpoint to get all assignments data
+app.get('/api/assignment', (req, res) => {
+  const { title } = req.query; // Get the title from query parameter
+
+  let query = 'SELECT * FROM assignment';
+  if (title) {
+    query += ' WHERE title = ?'; // Add a condition if title is provided
+  }
+
+  connection.query(query, [title], (err, results) => {
+    if (err) {
+      console.error('Error fetching data:', err);
+      return res.status(500).json({ error: 'Failed to retrieve assignments' });
+    }
+    res.status(200).json(results); // Send the data back as a JSON response
+  });
+});
+
+app.get('/api/rank', (req, res) => {
+  const query = 'SELECT *from ranking'; // Assuming `students` table has columns `id` and `name`
+
+  connection.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching  ranking :', err);
+      return res.status(500).json({ error: 'Failed to retrieve ' });
+    }
+    res.status(200).json(results);
+  });
+});
+
+app.get('/api/result', (req, res) => {
+  const query = 'SELECT *from result'; // Assuming `students` table has columns `id` and `name`
+
+  connection.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching  ranking :', err);
+      return res.status(500).json({ error: 'Failed to retrieve ' });
+    }
+    res.status(200).json(results);
+  });
+});
+// Start the server
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
+});
+// Get all students
+app.get('/api/students', (req, res) => {
+  const query = 'SELECT * FROM student';
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching student details:', err);
+      res.status(500).json({ error: 'Something went wrong' });
+    } else {
+      res.status(200).json(results);
+    }
+  });
+});

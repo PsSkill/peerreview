@@ -1,141 +1,82 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:peerreview/students/StudentDashboard.dart';
+import 'AssignmentDetailPage.dart';  // Make sure this path is correct based on your file structure
+import 'dart:async'; // For Timer
+import 'package:peerreview/students/assignment.dart'; // Import the common Assignment class
+
 
 class TaskPage extends StatefulWidget {
-  final String assignmentTitle;
-  final Map<String, dynamic> taskDetails;
-  final int taskTime; // Time in minutes
+  final Assignment assignment;
 
-  TaskPage({
-    required this.assignmentTitle,
-    required this.taskDetails,
-    required this.taskTime,
-  });
+  TaskPage({required this.assignment});
 
   @override
   _TaskPageState createState() => _TaskPageState();
 }
 
 class _TaskPageState extends State<TaskPage> {
-  int remainingTime = 0; // Time in seconds
-  Timer? taskTimer;
-  String? question;
+  late int remainingTime;
+  late Timer timer;
 
   @override
   void initState() {
     super.initState();
-    remainingTime = widget.taskTime * 60; // Convert minutes to seconds
-    fetchQuestion();
-    startTimer();
-  }
+    remainingTime = int.parse(widget.assignment.totalTime) * 60; // Convert minutes to seconds
 
-  // Fetch question based on assignment title
-  Future<void> fetchQuestion() async {
-    try {
-      final response = await http.get(Uri.parse('$apiBaseUrl/api/questions'));
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        
-        // Filter questions based on assignment title
-        final filteredQuestions = data.where((q) => q['title'] == widget.assignmentTitle).toList();
-        
-        if (filteredQuestions.isNotEmpty) {
-          setState(() {
-            question = filteredQuestions[0]['question']; // Pick the first question
-          });
-        } else {
-          setState(() {
-            question = 'No question found for this task.';
-          });
-        }
-      } else {
-        throw Exception('Failed to load questions');
-      }
-    } catch (e) {
-      setState(() {
-        question = 'Error loading question.';
-      });
-      print('Error fetching questions: $e');
-    }
-  }
-
-  // Start countdown timer
-  void startTimer() {
-    taskTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+    timer = Timer.periodic(Duration(seconds: 1), (timer) {
       if (remainingTime > 0) {
         setState(() {
           remainingTime--;
         });
       } else {
         timer.cancel();
-        showTaskCompletedDialog();
+        _showTimeUpDialog();
       }
     });
   }
 
-  // Show task completion dialog
-  void showTaskCompletedDialog() {
+  @override
+  void dispose() {
+    timer.cancel();
+    super.dispose();
+  }
+
+  void _showTimeUpDialog() {
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text("Time's Up!"),
-          content: Text("You have completed the task."),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pop(context); // Go back to assignment details
-              },
-              child: Text("OK"),
-            ),
-          ],
-        );
-      },
+      builder: (context) => AlertDialog(
+        title: Text('Time Up!'),
+        content: Text('The time for this task has ended.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text('OK')),
+        ],
+      ),
     );
   }
 
-  @override
-  void dispose() {
-    taskTimer?.cancel();
-    super.dispose();
+  String _formatTime(int seconds) {
+    int minutes = seconds ~/ 60;
+    int secs = seconds % 60;
+    return '$minutes:${secs.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Task Page"),
-        backgroundColor: Color(0xFF2b4f87),
-      ),
+      appBar: AppBar(title: Text('Task Page'), backgroundColor: Colors.blueAccent),
       body: Padding(
-        padding: EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "Task: ${widget.taskDetails['task_title']}",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
+            Text('Task Name: ${widget.assignment.taskDetails}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            SizedBox(height: 20),
+            Text('Remaining Time:', style: TextStyle(fontSize: 16)),
             SizedBox(height: 10),
-            Text(
-              "Question:",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 5),
-            Text(
-              question ?? 'Loading question...',
-              style: TextStyle(fontSize: 16),
-            ),
-            Spacer(),
-            Text(
-              "Time Remaining: $remainingTime seconds",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: remainingTime <= 10 ? Colors.red : Colors.black,
+            Center(
+              child: Text(
+                _formatTime(remainingTime),
+                style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.red),
               ),
             ),
           ],

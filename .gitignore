@@ -1,0 +1,45 @@
+# Miscellaneous
+peerreview/*.class
+peerreview/*.log
+peerreview/*.pyc
+peerreview/*.swp
+peerreview/.DS_Store
+peerreview/.atom/
+peerreview/.build/
+peerreview/.buildlog/
+peerreview/.history
+peerreview/.svn/
+peerreview/.swiftpm/N
+peerreview/migrate_working_dir/
+
+# IntelliJ related
+peerreview/*.iml
+peerreview/*.ipr
+peerreview/*.iws
+peerreview/.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+peerreview/**/doc/api/
+peerreview/**/ios/Flutter/.last_build_id
+peerreview/.dart_tool/
+peerreview/.flutter-plugins
+peerreview/.flutter-plugins-dependencies
+peerreview/.pub-cache/
+peerreview/.pub/
+peerreview//build/
+
+# Symbolication related
+peerreview/app.*.symbols
+
+# Obfuscation related
+peerreview/app.*.map.json
+
+# Android Studio will place build artifacts here
+peerreview/android/app/debug
+peerreview/android/app/profile
+peerreview/android/app/release

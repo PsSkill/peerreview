@@ -70,7 +70,7 @@ class _CreateAssignmentState extends State<CreateAssignment> {
 
     try {
       final response = await http.get(
-        Uri.parse("'$apiBaseUrl/api/assignments"),
+        Uri.parse("$apiBaseUrl/api/assignments"),
         headers: {"Content-Type": "application/json"},
       );
 
@@ -88,7 +88,7 @@ class _CreateAssignmentState extends State<CreateAssignment> {
       }
 
       final postResponse = await http.post(
-        Uri.parse("'$apiBaseUrl/api/assignments"),
+        Uri.parse("$apiBaseUrl/api/assignment"),
         headers: {"Content-Type": "application/json"},
         body: json.encode(assignmentData),
       );

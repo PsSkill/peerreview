@@ -5,6 +5,7 @@ import 'detailPage.dart';
 import 'createAssignment.dart';
  import 'package:peerreview/config.dart';
 
+
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
 
@@ -64,6 +65,16 @@ class _AdminScreenState extends State<AdminScreen> {
     });
   }
 
+  // void _logout() {
+  //   // Clear any session data or tokens if necessary
+  //   Navigator.pushReplacement(
+  //     context,
+  //     MaterialPageRoute(
+  //       builder: (context) => const LoginScreen(),  // Navigate to LoginScreen
+  //     ),
+  //   );
+  // }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -74,6 +85,12 @@ class _AdminScreenState extends State<AdminScreen> {
         ),
         backgroundColor: const Color(0xFF2B4F87),
         elevation: 0,
+        // actions: [
+        //   IconButton(
+        //     icon: const Icon(Icons.logout),
+        //     onPressed: _logout, // Trigger logout action
+        //   ),
+        // ],
       ),
       backgroundColor: const Color(0xFFF2F4F8),
       body: SafeArea(

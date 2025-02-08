@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'dart:async';
+ import 'dart:async';
  import 'package:peerreview/config.dart';
 
 class StudentDashboard extends StatefulWidget {
@@ -10,376 +10,58 @@ class StudentDashboard extends StatefulWidget {
 }
 
 class _StudentDashboardState extends State<StudentDashboard> {
-  List<dynamic> assignments = [];
-  String? userName;
-  List<String> assignmentTitles = [];
-  List<String> questions = [];
-  bool isLoading = true;
-  List<String?> selectedTitles = [];
-  List<List<String?>> rankAssignments = [];
-  List<String> studentNames = [];
-  int _start = 10;
-  Timer? _timer;
-
-  void startTimer() {
-    const oneSec = const Duration(seconds: 1);
-    _timer = new Timer.periodic(
-      oneSec,
-      (Timer timer) {
-        if (_start == 0) {
-          setState(() {
-            timer.cancel();
-          });
-        } else {
-          setState(() {
-            _start--;
-          });
-        }
-      },
-    );
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // fetchAssignments(); // This method is not defined in this class
-    fetchUserName();
-  }
-
-  Future<void> fetchAssignments() async {
-  final url = Uri.parse("$apiBaseUrl/api/assignments");
-
-  try {
-    final response = await http.get(url);
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      int numberOfTasks = data["numberoftasks"] ?? 5;
-      int numberOfStudents = data["number_of_students"] ?? 5; // Get the student count
-      List<String> titles = (data["assignments"] as List<dynamic>)
-          .map((assignment) => assignment["title"].toString())
-          .toList();
-
-      if (numberOfTasks == 0 || titles.isEmpty) {
-        throw Exception("No tasks or titles found.");
-      }
-
-      // Fetch student names dynamically
-      List<String> students = await fetchStudentNames(numberOfStudents);
-
-      setState(() {
-        questions = List.generate(numberOfTasks,
-            (index) => "Who is the most suitable for Task ${index + 1}?");
-        assignmentTitles = titles;
-        selectedTitles = List.filled(numberOfTasks, null);
-        rankAssignments =
-            List.generate(numberOfTasks, (_) => List.filled(numberOfStudents, null));
-        studentNames.clear();
-        studentNames.addAll(students);
-        isLoading = false;
-      });
-
-      startTimer();
-    } else {
-      throw Exception("Failed to load data");
-    }
-  } catch (e) {
-    print("Error fetching tasks: $e");
-    setState(() {
-      questions = List.generate(
-          5, (index) => "Who is the most suitable for Task ${index + 1}?");
-      assignmentTitles = ["Default Assignment 1", "Default Assignment 2"];
-      selectedTitles = List.filled(5, null);
-      rankAssignments = List.generate(5, (_) => List.filled(5, null));
-      studentNames = ["Default Student 1", "Default Student 2"];
-      isLoading = false;
-    });
-  }
-}
-Future<List<String>> fetchStudentNames(int count) async {
-  final url = Uri.parse("$apiBaseUrl/api/student");
-
-  try {
-    final response = await http.get(url);
-
-    if (response.statusCode == 200) {
-      final List<dynamic> students = json.decode(response.body);
-
-      // Extract faculty IDs and email IDs
-      List<String> studentList = students
-          .take(count) // Get only required number of students
-          .map((student) => student["emailId"].toString()) // Use email as name
-          .toList();
-
-      return studentList;
-    } else {
-      throw Exception("Failed to fetch student names.");
-    }
-  } catch (e) {
-    print("Error fetching student names: $e");
-    return ["Default Student"];
-  }
-}
-
-
-  // Fetch user name from the API
-  Future<void> fetchUserName() async {
-    try {
-      final response =
-          await http.get(Uri.parse('$apiBaseUrl/api/student'));
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        setState(() {
-          userName = data['name'];
-        });
-      } else {
-        throw Exception('Failed to load user details');
-      }
-    } catch (e) {
-      print('Error fetching user details: $e');
-    }
-  }
-
-  void navigateToAssignmentDetails(Map<String, dynamic> assignment) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AssignmentDetailsPage(assignment: assignment),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Student Dashboard'),
-        backgroundColor: Color(0xFF2b4f87),
-      ),
-      body: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Text(
-              userName != null ? 'WELCOME $userName' : 'WELCOME',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF2b4f87),
-              ),
-            ),
-            SizedBox(height: 20),
-            Expanded(
-              child: ListView.builder(
-                itemCount: assignments.length,
-                itemBuilder: (context, index) {
-                  final assignment = assignments[index];
-                  return TitleCard(
-                    title: assignment['title'],
-                    date: assignment['date'],
-                    time: assignment['start_time'],
-                    buttonText: 'View Details',
-                    onPress: () => navigateToAssignmentDetails(assignment),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class TitleCard extends StatelessWidget {
-  final String title;
-  final String date;
-  final String time;
-  final String buttonText;
-  final VoidCallback onPress;
-
-  TitleCard({
-    required this.title,
-    required this.date,
-    required this.time,
-    required this.buttonText,
-    required this.onPress,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.only(bottom: 10),
-      elevation: 3,
-      child: ListTile(
-        title: Text(
-          title,
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Date: $date'),
-            Text('Start Time: $time'),
-          ],
-        ),
-        trailing: ElevatedButton(
-          onPressed: onPress,
-          child: Text(buttonText),
-        ),
-      ),
-    );
-  }
-}
-
-class AssignmentDetailsPage extends StatefulWidget {
-  final Map<String, dynamic> assignment;
-
-  AssignmentDetailsPage({required this.assignment});
-
-  @override
-  _AssignmentDetailsPageState createState() => _AssignmentDetailsPageState();
-}
-
-class _AssignmentDetailsPageState extends State<AssignmentDetailsPage> {
-  late List<dynamic> taskDetails;
-  int currentTaskIndex = 0;
-  bool isTaskStarted = false;
-  late Timer taskTimer = Timer.periodic(Duration(seconds: 1), (timer) {});
-  int remainingTime = 0;
-
-  // Track completed tasks
-  List<bool> taskCompletionStatus = [];
+  List assignments = [];
 
   @override
   void initState() {
     super.initState();
-    taskDetails =
-        jsonDecode(widget.assignment['task_details']); // Decode JSON string
-    taskCompletionStatus = List.generate(taskDetails.length,
-        (index) => false); // Initialize all tasks as not completed
+    fetchAssignments();
   }
 
-  // Start the task timer
-  void _startTask() {
-    if (currentTaskIndex < taskDetails.length) {
+  Future<void> fetchAssignments() async {
+    final response = await http.get(Uri.parse("$apiBaseUrl/api/assignment"));
+    if (response.statusCode == 200) {
       setState(() {
-        isTaskStarted = true;
-        remainingTime = _parseTime(
-            taskDetails[currentTaskIndex]['task_time']); // Convert to seconds
+        assignments = json.decode(response.body);
       });
-
-      // Cancel existing timer before starting a new one
-      taskTimer.cancel();
-
-      // Timer updates every second
-      taskTimer = Timer.periodic(Duration(seconds: 1), (timer) {
-        setState(() {
-          if (remainingTime > 0) {
-            remainingTime--; // Reduce time by 1 second
-          } else {
-            // Mark task as completed
-            taskCompletionStatus[currentTaskIndex] = true;
-
-            // Move to the next task
-            if (currentTaskIndex < taskDetails.length - 1) {
-              currentTaskIndex++;
-              remainingTime =
-                  _parseTime(taskDetails[currentTaskIndex]['task_time']);
-            } else {
-              // All tasks completed, stop the timer
-              taskTimer.cancel();
-              isTaskStarted = false;
-              showDialog(
-                context: context,
-                builder: (context) {
-                  return AlertDialog(
-                    title: Text("Task Completed"),
-                    content: Text("You have completed all tasks."),
-                    actions: [
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => RankAssignmentScreen(
-                                taskDetails:
-                                    taskDetails, // Pass the task details list
-                                onSubmit: (score, isEligible) {
-                                  print('Score: $score, Eligible: $isEligible');
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                        child: Text("OK"),
-                      ),
-                    ],
-                  );
-                },
-              );
-            }
-          }
-        });
-      });
+    } else {
+      print("Failed to load assignments");
     }
   }
 
-  // Helper function to parse the time (e.g., "5 min" or "10 sec")
-  int _parseTime(String timeString) {
-    final timeRegExp = RegExp(r'(\d+)'); // Extract digits
-    final match = timeRegExp.firstMatch(timeString);
-
-    if (match != null) {
-      int value = int.parse(match.group(0)!);
-
-      // Check if the string contains 'min' or 'sec' and convert accordingly
-      if (timeString.contains('min')) {
-        return value * 60; // Convert minutes to seconds
+  void navigateToAssignmentDetails(String title) async {
+    final response = await http.get(Uri.parse("$apiBaseUrl/api/assignments?title=$title"));
+    
+    if (response.statusCode == 200) {
+      List<dynamic> assignmentData = json.decode(response.body);
+      
+      if (assignmentData.isNotEmpty) {
+        Map<String, dynamic> assignmentDetails = assignmentData[0];
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AssignmentDetailsPage(details: assignmentDetails),
+          ),
+        );
       } else {
-        return value; // Return as is if already in seconds
+        showNoDetailsAlert();
       }
+    } else {
+      print("Failed to fetch assignment details");
     }
-
-    return 0; // Default return 0 if parsing fails
   }
 
-  @override
-  void dispose() {
-    taskTimer.cancel();
-    super.dispose();
-  }
-
-  // Show terms and conditions dialog
-  void _showTermsAndConditions() {
+  void showNoDetailsAlert() {
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text("Terms and Conditions"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text("1. No backward option is enabled."),
-              Text("2. Copy-paste is disabled."),
-              Text("3. No switching tabs."),
-            ],
-          ),
+          title: Text("No Details Found"),
+          content: Text("The details for this assignment are not available."),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context); // Close the dialog
-                print("User disagreed.");
-              },
-              child: Text("Disagree"),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context); // Close the dialog
-                _startTask(); // Start the task if the user agrees
-                print("User agreed.");
-              },
-              child: Text("Agree"),
+              onPressed: () => Navigator.pop(context),
+              child: Text("OK"),
             ),
           ],
         );
@@ -391,507 +73,529 @@ class _AssignmentDetailsPageState extends State<AssignmentDetailsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.assignment['title']),
-        backgroundColor: Color(0xFF2b4f87),
+        title: Text("Student Dashboard", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),),
+        backgroundColor: Colors.blueAccent,
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildDetailCard(
-                title: 'Assignment Details',
-                children: [
-                  _buildDetailRow('Date', widget.assignment['date']),
-                  _buildDetailRow(
-                      'Start Time', widget.assignment['start_time']),
-                  _buildDetailRow('Stop Time', widget.assignment['stop_time']),
-                  _buildDetailRow(
-                      'Total Time', widget.assignment['total_time']),
-                ],
-              ),
-              SizedBox(height: 10),
-              _buildDetailCard(
-                title: 'Explanation',
-                children: [
-                  Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8.0),
-                    child: Text(
-                      widget.assignment['explanation'],
-                      style: TextStyle(fontSize: 16),
+      body: assignments.isEmpty
+          ? Center(child: CircularProgressIndicator())
+          : ListView.builder(
+              itemCount: assignments.length,
+              itemBuilder: (context, index) {
+                var assignment = assignments[index];
+                return Card(
+                  margin: EdgeInsets.all(10),
+                  elevation: 1.5,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: ListTile(
+                    contentPadding: EdgeInsets.all(16),
+                    title: Text(
+                      assignment['title'],
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                     ),
+                    subtitle: Text(
+                      "Start: ${assignment['start_time']} - Stop: ${assignment['stop_time']}",
+                      style: TextStyle(color: Colors.black54, fontSize: 14),
+                    ),
+                    trailing: Icon(Icons.arrow_forward_ios, size: 20, color: Colors.blueAccent),
+                    onTap: () => navigateToAssignmentDetails(assignment['title']),
                   ),
-                ],
-              ),
-              SizedBox(height: 10),
-              _buildDetailCard(
-                title: 'Tasks',
-                showTimer: true, // Show live timer inside this card
-                children: taskDetails.map((task) {
-                  int taskIndex = taskDetails.indexOf(task);
-                  bool isCompleted = taskCompletionStatus[taskIndex];
-                  return TaskCard(
-                    taskTitle: task['task_title'],
-                    taskTime: task['task_time'],
-                    remainingTime: remainingTime, // Show decreasing time
-                    isTaskCompleted: isCompleted,
-                  );
-                }).toList(),
-              ),
+                );
+              },
+            ),
+    );
+  }
+}
 
-              SizedBox(height: 20),
-              Center(
-                child: ElevatedButton(
-                  onPressed:
-                      _showTermsAndConditions, // Calls the method to show the dialog
-                  child: Text('Start Now'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color.fromARGB(255, 191, 209, 238),
-                    padding: EdgeInsets.symmetric(horizontal: 50, vertical: 15),
-                    textStyle:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+ 
+
+
+class AssignmentDetailsPage extends StatelessWidget {
+  final Map<String, dynamic> details;
+  AssignmentDetailsPage({required this.details});
+
+  @override
+  Widget build(BuildContext context) {
+List taskDetails = details['task_details'] != null ? json.decode(details['task_details']) : [];
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(details['title']),
+        backgroundColor: Colors.blueAccent,
+      ),
+      body: Padding(
+        padding: EdgeInsets.all(16.0),
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              Card(
+                elevation: 1.5,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("📌 Explanation:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                      Text(details['explanation'], style: TextStyle(fontSize: 16)),
+                      Divider(),
+                      Text("📅 Date: ${details['date']}", style: TextStyle(fontSize: 16)),
+                      Text("⏰ Start Time: ${details['start_time']}", style: TextStyle(fontSize: 16)),
+                      Text("🛑 Stop Time: ${details['stop_time']}", style: TextStyle(fontSize: 16)),
+                      Text("⏳ Total Time: ${details['total_time']}", style: TextStyle(fontSize: 16)),
+                    ],
                   ),
                 ),
               ),
-              SizedBox(height: 20),
-              // Display remaining time only at the bottom
-              if (isTaskStarted)
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => RankAssignmentScreen(
-                          taskDetails:
-                              taskDetails, // Pass the task details list
-                          onSubmit: (score, isEligible) {
-                            print('Score: $score, Eligible: $isEligible');
-                          },
-                        ),
-                      ),
-                    );
-                  },
-                  child: Text('Go to Rankings'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    textStyle:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
+              SizedBox(height: 10,  width: double.infinity,),
+          
+              Text("📌 Tasks:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              ...taskDetails.map((task) => Card(
+                    elevation: 1.5,
+                    margin: EdgeInsets.symmetric(vertical: 5),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    child: ListTile(
+                      leading: Icon(Icons.task, color: Colors.blueAccent),
+                      title: Text(task['task_title'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      subtitle: Text("⏳ Duration: ${task['task_time']}", style: TextStyle(fontSize: 14)),
+                    ),
+                  )),
+              SizedBox(height: 40),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TaskPage(allTasks: taskDetails, currentIndex: 0),
+                    ),
+                  );
+                },
+                child: Text("Start Now"),
+              ),
             ],
           ),
         ),
       ),
     );
   }
-
-  /// Builds a detailed card widget with a title and a list of child widgets.
-  ///
-  /// The card includes an optional timer display if [showTimer] is true and
-  /// the task is started. The timer shows a countdown in seconds, changing
-  /// color to red when time is low.
-  ///
-  /// Parameters:
-  /// - [title]: The title text displayed at the top of the card.
-  /// - [children]: A list of widgets to be displayed inside the card.
-  /// - [showTimer]: A boolean indicating whether to show a timer, default is false.
-  Widget _buildDetailCard(
-      {required String title,
-      required List<Widget> children,
-      bool showTimer = false}) {
-    return Card(
-      margin: EdgeInsets.only(bottom: 10),
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Padding(
-        padding: EdgeInsets.all(15),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                if (showTimer && isTaskStarted) // Show timer when task starts
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade100,
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: Text(
-                      'Timer: $remainingTime sec', // Show live countdown in seconds
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: remainingTime <= 10 ? Colors.red : Colors.black,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            Divider(),
-            ...children,
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 5.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          Text(value),
-        ],
-      ),
-    );
-  }
 }
 
-class TaskCard extends StatelessWidget {
-  final String taskTitle;
-  final String taskTime;
-  final int remainingTime;
-  final bool isTaskCompleted; // Add a flag for completion
+class TaskPage extends StatefulWidget {
+  final List<dynamic> allTasks;
+  final int currentIndex;
 
-  TaskCard({
-    required this.taskTitle,
-    required this.taskTime,
-    required this.remainingTime,
-    required this.isTaskCompleted, // Add a flag for completion
-  });
+  TaskPage({required this.allTasks, required this.currentIndex});
 
   @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.only(bottom: 8),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      color: isTaskCompleted
-          ? Colors.green
-          : Colors.white, // Change color based on completion status
-      child: ListTile(
-        contentPadding: EdgeInsets.all(10),
-        title: Text(
-          taskTitle,
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text('Task Time: $taskTime'),
-      ),
-    );
-  }
+  _TaskPageState createState() => _TaskPageState();
 }
 
-class RankAssignmentScreen extends StatefulWidget {
-  final Function(int score, bool isEligible) onSubmit;
-
-  RankAssignmentScreen({required this.taskDetails, required this.onSubmit});
-
-  final List<dynamic> taskDetails;
+class _TaskPageState extends State<TaskPage> {
+  late int remainingTime;
+  Timer? timer;
+  String displayedQuestion = "Loading question...";
 
   @override
-  _RankAssignmentScreenState createState() => _RankAssignmentScreenState();
+void initState() {
+  super.initState();
+
+  var taskDetails = widget.allTasks[widget.currentIndex];
+
+  // Handle null values safely
+  String taskTimeStr = taskDetails['task_time'] ?? '0 min';
+  int taskTime = int.tryParse(RegExp(r'\d+').firstMatch(taskTimeStr)?.group(0) ?? '0') ?? 0;
+
+  remainingTime = taskTime * 60;
+  displayedQuestion = "Loading question...";
+
+  fetchQuestion();
+  startTimer();
 }
 
-class _RankAssignmentScreenState extends State<RankAssignmentScreen> {
-  List<String> questions = [];
-  List<String> assignmentTitles = [];
-  List<String?> selectedTitles = [];
-  final List<String> studentNames = [
-    "Student A",
-    "Student B",
-    "Student C",
-    "Student D",
-    "Student E"
-  ];
-
-  List<List<String?>> rankAssignments = [];
-  int currentQuestionIndex = 0;
-  int timer = 30;
-  Timer? countdownTimer;
-  bool isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    fetchAssignments(); // This method is not defined in this class
-  }
-
-  Future<void> postRankings() async {
-  final url = Uri.parse("$apiBaseUrl/api/rank");
-
-  List<String> taskIds = widget.taskDetails.map((task) => task['id'].toString()).toList();
-
-  for (int i = 0; i < taskIds.length; i++) {
-    String? facultyId = selectedTitles[i]; // The entered faculty ID
-    if (facultyId == null || facultyId.isEmpty) continue;
-
-    Map<String, dynamic> rankData = {
-      "assignment_id": taskIds[i], // Use the corresponding task ID
-      "faculty_id": facultyId,
-      "task_number": i + 1,
-      "rank_1": rankAssignments[i][0] ?? "",
-      "rank_2": rankAssignments[i][1] ?? "",
-      "rank_3": rankAssignments[i][2] ?? "",
-      "rank_4": rankAssignments[i][3] ?? "",
-      "rank_5": rankAssignments[i][4] ?? "",
-    };
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: json.encode(rankData),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        print("Ranking submitted successfully for Task ${i + 1}");
-      } else {
-        print("Failed to submit ranking for Task ${i + 1}");
-      }
-    } catch (e) {
-      print("Error submitting ranking: $e");
-    }
-  }
-}
-
-void handleSubmit() async {
-  await postRankings();
-
-  int score = (20 + (20 * (currentQuestionIndex / questions.length))).toInt();
-  bool isEligible = score >= 20;
-
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => ResultScreen(score: score, isEligible: isEligible),
-    ),
-  );
-}
 
   void startTimer() {
-    countdownTimer = Timer.periodic(Duration(seconds: 1), (timer) {
-      if (this.timer == 0) {
-        goToNextQuestion();
-      } else {
+    timer = Timer.periodic(Duration(seconds: 1), (timer) {
+      if (remainingTime > 0) {
         setState(() {
-          this.timer--;
+          remainingTime--;
         });
+      } else {
+        timer.cancel();
+        moveToNextTask();
       }
     });
   }
 
-  void goToNextQuestion() {
-    if (currentQuestionIndex < questions.length - 1) {
-      setState(() {
-        currentQuestionIndex++;
-        timer = 30;
-      });
+  Future<void> fetchQuestion() async {
+    final response = await http.get(Uri.parse("$apiBaseUrl/api/questions"));
+    if (response.statusCode == 200) {
+      List<dynamic> questions = json.decode(response.body);
+      if (questions.isNotEmpty) {
+        setState(() {
+          displayedQuestion = questions[0]['question'];
+        });
+      } else {
+        setState(() {
+          displayedQuestion = "No questions available";
+        });
+      }
     } else {
-      handleSubmit();
+      setState(() {
+        displayedQuestion = "Failed to load question";
+      });
     }
   }
 
-  void submitRankings() {
-    int score = (20 + (20 * (currentQuestionIndex / questions.length))).toInt();
-    bool isEligible = score >= 20;
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) =>
-            ResultScreen(score: score, isEligible: isEligible),
-      ),
-    );
-  }
-
-  void showStudentPicker(BuildContext context, int rankIndex) {
-    showModalBottomSheet(
-      context: context,
-      builder: (BuildContext ctx) {
-        return Container(
-          padding: EdgeInsets.all(10),
-          child: ListView.builder(
-            itemCount: studentNames.length,
-            itemBuilder: (ctx, index) {
-              return ListTile(
-                title: Text(studentNames[index]),
-                onTap: () {
-                  setState(() {
-                    rankAssignments[currentQuestionIndex][rankIndex] =
-                        studentNames[index];
-                  });
-                  Navigator.pop(ctx);
-                },
-              );
-            },
+  void moveToNextTask() {
+    if (widget.currentIndex + 1 < widget.allTasks.length) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TaskPage(
+            allTasks: widget.allTasks,
+            currentIndex: widget.currentIndex + 1,
           ),
-        );
-      },
-    );
+        ),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => CompletionPage()),
+      );
+    }
   }
 
   @override
   void dispose() {
-    countdownTimer?.cancel();
+    timer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    var taskDetails = widget.allTasks[widget.currentIndex];
+
     return Scaffold(
       appBar: AppBar(
-        title: Text("Rank Assignment"),
-        backgroundColor: Color(0xFF2b4f87),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
+        title: Text(taskDetails['task_title']),
+        backgroundColor: Colors.blueAccent,
       ),
-      body: isLoading
-          ? Center(child: CircularProgressIndicator())
-          : questions.isEmpty
-              ? Center(child: Text("No tasks available"))
-              : Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(height: 20),
-                      Text(
-                        questions[currentQuestionIndex],
-                        style: TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                      SizedBox(height: 10),
-                      Text(
-                        "Enter   ID:",
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      TextField(
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          hintText: "Enter Faculty ID",
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (value) {
-                          setState(() {
-                            selectedTitles[currentQuestionIndex] =
-                                value; // Store entered faculty ID
-                          });
-                        },
-                      ),
-                      ElevatedButton(
-                        onPressed: () => validateId(
-                            context, currentQuestionIndex, selectedTitles),
-                        child: Text("Validate  ID"),
-                      ),
-                      SizedBox(height: 20),
-                     Column(
-  children: List.generate(5, (rankIndex) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: ElevatedButton(
-              onPressed: () => showStudentPicker(context, rankIndex),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                side: BorderSide(color: Colors.blue),
-              ),
+      body: Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
               child: Text(
-                rankAssignments[currentQuestionIndex][rankIndex] ?? "Select a student",
-                style: TextStyle(fontSize: 16, color: Colors.black),
+                "⏳ Remaining Time: ${remainingTime ~/ 60}:${(remainingTime % 60).toString().padLeft(2, '0')}",
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.redAccent),
               ),
             ),
-          ),
-          SizedBox(width: 20),
-          Text(
-            "Rank ${rankIndex + 1}",
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }),
-),
-
-                      SizedBox(height: 20),
-Center(
-  child: ElevatedButton(
-    onPressed: goToNextQuestion,
-    child: Text(
-      currentQuestionIndex < questions.length - 1
-          ? "Next Question"
-          : "Submit Assignments",
-      style: TextStyle(fontSize: 18),
-    ),
-    style: ElevatedButton.styleFrom(
-      backgroundColor: Colors.blueAccent,
-      foregroundColor: Colors.white,
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-    ),
-  ),
-                          )        ],
+            SizedBox(height: 20),
+            Text(
+              "📌 Task: ${taskDetails['task_title']}",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 20),
+            Card(
+              elevation: 1.5,
+              margin: EdgeInsets.symmetric(vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  displayedQuestion,
+                  style: TextStyle(fontSize: 16),
+                ),
+              ),
+            ),
+            Spacer(),
+            ElevatedButton(
+              onPressed: moveToNextTask,
+              child: Text(widget.currentIndex + 1 < widget.allTasks.length ? "Next Task" : "Finish"),
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                textStyle: TextStyle(fontSize: 18),
+                backgroundColor: Colors.blueAccent,
+              ),
+            ),
+            SizedBox(height: 20),
+          ],
         ),
       ),
     );
   }
-  
-  void fetchAssignments() {}
+}
+class CompletionPage extends StatefulWidget {
+  @override
+  _CompletionPageState createState() => _CompletionPageState();
 }
 
-class ResultScreen extends StatelessWidget {
-  final int score;
-  final bool isEligible;
+class _CompletionPageState extends State<CompletionPage> {
+  List<Map<String, dynamic>> rankingList = [];
+  int numberOfRanks = 0;
+  int numberOfStudents = 0;
+  int numberOfTasks = 0;
+  String? selectedTask;
+  bool isSubmitting = false;
+  Set<String> submittedTasks = {}; // Track submitted tasks
+  TextEditingController facultyIdController = TextEditingController();
+  bool isFacultyValid = false; // Track faculty ID validation
 
-  ResultScreen({required this.score, required this.isEligible});
+  @override
+  void initState() {
+    super.initState();
+    fetchAssignmentDetails();
+  }
+
+  Future<void> fetchAssignmentDetails() async {
+    final response = await http.get(Uri.parse("$apiBaseUrl/api/assignments"));
+    if (response.statusCode == 200) {
+      List<dynamic> data = json.decode(response.body);
+      if (data.isNotEmpty) {
+        setState(() {
+          numberOfRanks = data[0]['numberofranks'] ?? 0;
+          numberOfStudents = data[0]['number_of_students'] ?? 0;
+          numberOfTasks = data[0]['numberoftasks'] ?? 0;
+        });
+        fetchStudentNames();
+      }
+    }
+  }
+
+  Future<void> fetchStudentNames() async {
+    final response = await http.get(Uri.parse("$apiBaseUrl/api/namelist"));
+    if (response.statusCode == 200) {
+      List<dynamic> studentsData = json.decode(response.body);
+      List<Map<String, dynamic>> tempList = [];
+      for (int i = 0; i < numberOfStudents && i < studentsData.length; i++) {
+        tempList.add({"name": studentsData[i]['name'] ?? "Unknown Student"});
+      }
+      setState(() {
+        rankingList = tempList;
+      });
+    }
+  }
+
+  Future<void> validateFacultyId() async {
+    final String facultyId = facultyIdController.text.trim();
+    if (facultyId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Please enter Faculty ID")));
+      return;
+    }
+
+    final response = await http.get(Uri.parse("$apiBaseUrl/api/student"));
+    if (response.statusCode == 200) {
+      List<dynamic> facultyList = json.decode(response.body);
+      bool isValid = facultyList.any((faculty) => faculty['facultyId'].toString() == facultyId);
+
+      if (isValid) {
+        setState(() {
+          isFacultyValid = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Faculty ID validated successfully!")));
+      } else {
+        setState(() {
+          isFacultyValid = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Invalid Faculty ID!")));
+      }
+    }
+  }
+
+ Future<void> submitRankings() async {
+  if (!isFacultyValid) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Please validate Faculty ID first!")));
+    return;
+  }
+
+  if (selectedTask == null) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Please select a task!")));
+    return;
+  }
+
+  if (submittedTasks.contains(selectedTask)) {
+    showAlreadySubmittedAlert();
+    return;
+  }
+
+  setState(() {
+    isSubmitting = true;
+  });
+
+  final url = "$apiBaseUrl/api/rank";
+  final response = await http.post(
+    Uri.parse(url),
+    headers: {"Content-Type": "application/json"},
+    body: json.encode({
+      "assignment_id": 1,
+      "faculty_id": int.parse(facultyIdController.text),
+      "task_number": selectedTask,
+      "rank_1": rankingList.isNotEmpty ? rankingList[0]['name'] : "",
+      "rank_2": rankingList.length > 1 ? rankingList[1]['name'] : "",
+      "rank_3": rankingList.length > 2 ? rankingList[2]['name'] : "",
+      "rank_4": rankingList.length > 3 ? rankingList[3]['name'] : "",
+      "rank_5": rankingList.length > 4 ? rankingList[4]['name'] : "",
+    }),
+  );
+
+  setState(() {
+    isSubmitting = false;
+  });
+
+  if (response.statusCode == 201) {
+    submittedTasks.add(selectedTask!);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Ranking submitted successfully!")));
+
+    // Call processAndStoreResults after successful submission
+    processAndStoreResults(101, 1);
+
+    // fetchResults(); // Fetch results after processing
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to submit ranking.")));
+  }
+}
+
+  void showAlreadySubmittedAlert() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text("Already Submitted"),
+          content: Text("You have already submitted the ranking for this task."),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text("OK"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void navigateToResultPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ResultPage(),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Result"),
-        backgroundColor: Color(0xFF2b4f87),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+      appBar: AppBar(title: Text("Ranking Results"), backgroundColor: Colors.blueAccent),
+      body: Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
+              controller: facultyIdController,
+              decoration: InputDecoration(
+                labelText: "Enter Faculty ID",
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: validateFacultyId,
+              child: Text("Validate  ID"),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            ),
+            SizedBox(height: 20),
+            Text("Select Task", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            DropdownButton<String>(
+              value: selectedTask,
+              hint: Text("Choose a task"),
+              onChanged: (String? newValue) {
+                setState(() {
+                  selectedTask = newValue;
+                });
+              },
+              items: List.generate(numberOfTasks, (index) {
+                return DropdownMenuItem<String>(
+                  value: (index + 1).toString(),
+                  child: Text("Task ${index + 1}"),
+                );
+              }),
+            ),
+            SizedBox(height: 20),
+            Expanded(
+              child: rankingList.isEmpty
+                  ? Center(child: CircularProgressIndicator())
+                  : ReorderableListView(
+                      onReorder: (oldIndex, newIndex) {
+                        setState(() {
+                          if (newIndex > oldIndex) newIndex -= 1;
+                          final item = rankingList.removeAt(oldIndex);
+                          rankingList.insert(newIndex, item);
+                        });
+                      },
+                      children: rankingList.map((entry) => ListTile(
+                        key: ValueKey(entry['name']),
+                        title: Text(entry['name']),
+                        trailing: Icon(Icons.drag_handle),
+                      )).toList(),
+                    ),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+  onPressed: isSubmitting
+      ? null
+      : () async {
+          setState(() {
+            isSubmitting = true;
+          });
+
+          await submitRankings(); // Ensure rankings are submitted
+
+          setState(() {
+            isSubmitting = false;
+          });
+
+          // Show the message after submitting
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: Text("Ranking Submitted"),
+                content: Text("You have passed!"), // Change this text as needed
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text("OK"),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+  child: isSubmitting
+      ? CircularProgressIndicator(color: Colors.white)
+      : Text("Submit Ranking"),
+  style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+),
+
+          ],
         ),
       ),
+    );
+  }
+}
+class ResultPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text("Result"), backgroundColor: Colors.blueAccent),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              "Your Score: $score",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
+            Text("Your Result:", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             SizedBox(height: 20),
-            Text(
-              isEligible ? "You are eligible!" : "You are not eligible",
-              style: TextStyle(
-                  fontSize: 20, color: isEligible ? Colors.green : Colors.red),
-            ),
-            SizedBox(height: 30),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text("Back to Home"),
-            ),
+            Text("✅ Passed!", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.green)),
           ],
         ),
       ),
@@ -899,172 +603,87 @@ class ResultScreen extends StatelessWidget {
   }
 }
 
-Future<void> validateId(BuildContext context, int currentQuestionIndex,
-    List<String?> selectedTitles) async {
-  String? facultyId = selectedTitles[currentQuestionIndex];
 
-  if (facultyId == null || facultyId.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text("Please enter a  ID."),
-    ));
-    return;
-  }
-
-  final url =
-      Uri.parse("$apiBaseUrl/api/student?facultyId=$facultyId");
+void main() {
+  runApp(MaterialApp(
+    debugShowCheckedModeBanner: false,
+    theme: ThemeData(primarySwatch: Colors.blue),
+    home: StudentDashboard(),
+  ));
+}
+Future<void> processAndStoreResults(int assignmentId, int taskNumber) async {
+  final String rankApiUrl = "$apiBaseUrl/api/rank";
+  final String resultApiUrl = "$apiBaseUrl/api/student_results";
 
   try {
-    final response = await http.get(url);
+    // Fetch all rankings for the given assignment and task
+    final response = await http.get(Uri.parse(rankApiUrl));
+    if (response.statusCode != 200) {
+      print("Failed to fetch rankings.");
+      return;
+    }
 
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      if (data.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(" ID is valid!"),
-          backgroundColor: Colors.green,
-        ));
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text("Invalid  ID."),
-          backgroundColor: Colors.red,
-        ));
+    List<dynamic> rankingData = json.decode(response.body);
+    
+    // Filter rankings based on assignment ID and task number
+    List<dynamic> taskRankings = rankingData.where((entry) => 
+      entry['assignment_id'] == assignmentId && entry['task_number'] == taskNumber
+    ).toList();
+
+    if (taskRankings.isEmpty) {
+      print("No rankings found for Assignment $assignmentId, Task $taskNumber");
+      return;
+    }
+
+    // Map to store total points per student
+    Map<String, int> studentPoints = {};
+
+    // Calculate points based on ranks given
+    for (var ranking in taskRankings) {
+      List<String> rankedStudents = [
+        ranking['rank_1'],
+        ranking['rank_2'],
+        ranking['rank_3'],
+        ranking['rank_4'],
+        ranking['rank_5']
+      ];
+
+      List<int> points = [4, 3, 2, 1, 0];
+
+      for (int i = 0; i < rankedStudents.length; i++) {
+        if (rankedStudents[i] != null && rankedStudents[i].isNotEmpty) {
+          studentPoints[rankedStudents[i]] = (studentPoints[rankedStudents[i]] ?? 0) + points[i];
+        }
       }
-    } else {
-      throw Exception("Failed to validate  ID.");
+    }
+
+    // Calculate average points
+    double averagePoints = studentPoints.values.reduce((a, b) => a + b) / studentPoints.length;
+
+    // Submit results for each student
+    for (var entry in studentPoints.entries) {
+      String studentName = entry.key;
+      int totalPoints = entry.value;
+      String resultStatus = totalPoints >= (0.5 * averagePoints) ? "Pass" : "Fail";
+
+      final resultResponse = await http.post(
+        Uri.parse(resultApiUrl),
+        headers: {"Content-Type": "application/json"},
+        body: json.encode({
+          "faculty_id": 17046,  // Change to dynamic if needed
+          "total_points": totalPoints,
+          "average_points": averagePoints,
+          "result_status": resultStatus
+        }),
+      );
+
+      if (resultResponse.statusCode == 200) {
+        print("Result stored for $studentName: $resultStatus");
+      } else {
+        print("Failed to store result for $studentName");
+      }
     }
   } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text("Error: $e"),
-      backgroundColor: Colors.red,
-    ));
-  }
-}
-Future<void> fetchRankings() async {
-  final url = Uri.parse("$apiBaseUrl/api/get_rankings");
-  try {
-    final response = await http.get(url);
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      calculateScores(data);
-    } else {
-      print("Failed to fetch rankings");
-    }
-  } catch (e) {
-    print("Error fetching rankings: $e");
-  }
-}
-void calculateScores(List<dynamic> rankings) {
-  Map<String, int> studentScores = {};
-
-  for (var entry in rankings) {
-    String student = entry['student_name'];
-    int rank = entry['rank'];
-
-    // Assign points based on rank
-    int points = 0;
-    if (rank == 1) points = 4;
-    else if (rank == 2) points = 3;
-    else if (rank == 3) points = 2;
-    else if (rank == 4) points = 1;
-    else if (rank == 5) points = 0;
-
-    // Add points to student score
-    studentScores[student] = (studentScores[student] ?? 0) + points;
-  }
-
-  // Identify top 3 students
-  List<MapEntry<String, int>> sortedStudents = studentScores.entries.toList();
-  sortedStudents.sort((a, b) => b.value.compareTo(a.value));
-
-  List<String> topThree = sortedStudents.take(3).map((e) => e.key).toList();
-
-  // Penalize incorrect judges (if they placed a non-top-3 student in ranks 1-3)
-  for (var entry in rankings) {
-    String student = entry['student_name'];
-    int rank = entry['rank'];
-    if (rank <= 3 && !topThree.contains(student)) {
-      studentScores[student] = (studentScores[student] ?? 0) - 2; // Negative points
-    }
-  }
-
-  // Compute final results
-    displayResults(studentScores);
-  }
-  
-  void showResults(Map<String, int> studentScores) {
-    // Implement your logic to display the results here
-    studentScores.forEach((student, score) {
-      print('Student: $student, Score: $score');
-    });
-}
-void displayResults(Map<String, int> studentScores) {
-  List<MapEntry<String, int>> sortedStudents = studentScores.entries.toList();
-  sortedStudents.sort((a, b) => b.value.compareTo(a.value));
-
-  int maxPossibleScore = 4 * studentScores.length; // Max points = 4 * num students
-
-  print("Final Scores:");
-  for (var entry in sortedStudents) {
-    String student = entry.key;
-    int score = entry.value;
-    double percentage = (score / maxPossibleScore) * 100;
-
-    bool passed = percentage >= 50;
-    print("$student - Score: $score (${percentage.toStringAsFixed(2)}%) - ${passed ? "✅ Passed" : "❌ Failed"}");
-
-    if (passed) {
-      postResults(student, score, passed);
-    }
-  }
-}
-
-Future<void> submitResults(String student, int score, bool passed) async {
-  final url = Uri.parse("$apiBaseUrl/api/results");
-  final resultData = {
-    "student": student,
-    "score": score,
-    "passed": passed,
-  };
-
-  try {
-    final response = await http.post(
-      url,
-      headers: {"Content-Type": "application/json"},
-      body: json.encode(resultData),
-    );
-
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      print("Results posted successfully for $student");
-    } else {
-      print("Failed to post results for $student");
-    }
-  } catch (e) {
-    print("Error posting results: $e");
-  }
-}
-
-Future<void> postResults(String student, int score, bool passed) async {
-  final url = Uri.parse("$apiBaseUrl/api/post_results");
-
-  Map<String, dynamic> resultData = {
-    "student_name": student,
-    "score": score,
-    "status": passed ? "Passed" : "Failed",
-  };
-
-  try {
-    final response = await http.post(
-      url,
-      headers: {"Content-Type": "application/json"},
-      body: json.encode(resultData),
-    );
-
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      print("Result posted successfully for $student");
-    } else {
-      print("Failed to post result for $student");
-    }
-  } catch (e) {
-    print("Error posting result: $e");
+    print("Error processing results: $e");
   }
 }

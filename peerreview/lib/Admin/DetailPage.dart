@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 
 class DetailPage extends StatefulWidget {
   final Map<String, dynamic> assignment;
-  const DetailPage({Key? key, required this.assignment}) : super(key: key);
+  const DetailPage({super.key, required this.assignment});
 
   @override
   _DetailPageState createState() => _DetailPageState();
@@ -84,7 +84,7 @@ class _DetailPageState extends State<DetailPage> {
 
     try {
       final response = await http.post(
-        Uri.parse("'$apiBaseUrl/api/assignment"),
+        Uri.parse("$apiBaseUrl/api/assignments"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(assignmentData),
       );
@@ -303,10 +303,10 @@ Card(
                           SizedBox(height: 10),
                           ElevatedButton(
                             onPressed: () => showTaskTimeModal(index),
-                            child: Text("Task Time: ${taskTimes[index].isEmpty ? "Select" : taskTimes[index]}"),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.blueAccent,
                             ),
+                            child: Text("Task Time: ${taskTimes[index].isEmpty ? "Select" : taskTimes[index]}"),
                           ),
                           SizedBox(height: 5),
                           TextButton(
@@ -332,13 +332,13 @@ Card(
             SizedBox(height: 30),
             ElevatedButton(
               onPressed: isLoading ? null : saveAssignment,
-              child: isLoading ? CircularProgressIndicator(color: Colors.white) : Text("Save Assignment"),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueAccent,
                 padding: EdgeInsets.symmetric(vertical: 12),
                 textStyle: TextStyle(fontSize: 18),
                 minimumSize: Size(double.infinity, 48),
               ),
+              child: isLoading ? CircularProgressIndicator(color: Colors.white) : Text("Save Assignment"),
             ),
           ],
         ),

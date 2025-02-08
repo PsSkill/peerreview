@@ -2,10 +2,14 @@ const express = require('express');
 const mysql = require('mysql');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+require('dotenv').config();
+const authenticateToken = require('./middleware/authMiddleware'); // Import middleware
+ const app = express();
+const port = 5000;
 
-const app = express();
-const port = 5001;
-
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
@@ -34,19 +38,30 @@ app.post('/api/assignment', (req, res) => {
       return res.status(400).json({ error: 'Title is required and must be a string' });
     }
   
-    const query = 'INSERT INTO assignment (title, date, start_time, stop_time) VALUES (?, ?, ?, ?)';
+    const query = 'INSERT INTO assignments (title, date, start_time, stop_time) VALUES (?, ?, ?, ?)';
     db.query(query, [title, date, startTime, stopTime], (err, result) => {
       if (err) {
         console.error('Error creating assignment:', err);
         res.status(500).json({ error: 'Something went wrong' });
       } else {
-        res.status(201).json({ id: result.insertId, title, date, startTime, stopTime });
+        res.status(200).json({ id: result.insertId, title, date, startTime, stopTime });
       }
     });
   });
 // Get all assignments
 app.get('/api/assignment', (req, res) => {
   const query = 'SELECT * FROM assignments';
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching assignments:', err);
+      res.status(500).json({ error: 'Something went wrong' });
+    } else {
+      res.status(200).json(results);
+    }
+  });
+});
+app.get('/api/assignments', (req, res) => {
+  const query = 'SELECT * FROM assignment';
   db.query(query, (err, results) => {
     if (err) {
       console.error('Error fetching assignments:', err);
@@ -134,7 +149,7 @@ app.get('/api/questions', (req, res) => {
   });
 });
 app.get('/api/rank', (req, res) => {
-  const query = 'SELECT * FROM rankassignments';
+  const query = 'SELECT * FROM rank';
 
   db.query(query, (err, results) => {
     if (err) {
@@ -145,6 +160,28 @@ app.get('/api/rank', (req, res) => {
     }
   });
 });
+app.post('/api/rank', (req, res) => {
+  const { assignment_id, faculty_id, task_number, rank_1, rank_2, rank_3, rank_4, rank_5 } = req.body;
+
+  if (!assignment_id || !faculty_id || !task_number || !rank_1 || !rank_2 || !rank_3 || !rank_4 || !rank_5) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  const query = `
+  INSERT INTO \`rank\` (assignment_id, faculty_id, task_number, rank_1, rank_2, rank_3, rank_4, rank_5, created_at) 
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+`;
+
+
+  db.query(query, [assignment_id, faculty_id, task_number, rank_1, rank_2, rank_3, rank_4, rank_5], (err, result) => {
+    if (err) {
+      console.error('Error inserting ranking:', err);
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+    res.status(201).json({ message: 'Ranking added successfully', id: result.insertId });
+  });
+});
+
 app.get('/api/students', (req, res) => {
   const query = 'SELECT id, name FROM students'; // Assuming `students` table has columns `id` and `name`
 
@@ -156,40 +193,45 @@ app.get('/api/students', (req, res) => {
     res.status(200).json(results);
   });
 });
+ 
 
-// API endpoint to save assignment data
-app.post('/api/assignment', (req, res) => {
-  const { title, date, start_time, stop_time, explanation, number_of_students, numberoftasks, numberofranks, task_details, total_time } = req.body;
+// app.get('/api/result', (req, res) => {
+//   const query = 'SELECT *from result'; // Assuming `students` table has columns `id` and `name`
 
-  const query = `
-    INSERT INTO assignment (
-      title, date, start_time, stop_time, explanation, number_of_students, numberoftasks, numberofranks, task_details, total_time
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-
-  connection.query(
-    query,
-    [title, date, start_time, stop_time, explanation, number_of_students, numberoftasks, numberofranks, JSON.stringify(task_details), total_time],
-    (err, results) => {
-      if (err) {
-        console.error('Error inserting data:', err);
-        return res.status(500).json({ error: 'Failed to save assignment' });
-      }
-      res.status(201).json({ message: 'Assignment saved successfully', id: results.insertId });
-    }
-  );
+//   connection.query(query, (err, results) => {
+//     if (err) {
+//       console.error('Error fetching  ranking :', err);
+//       return res.status(500).json({ error: 'Failed to retrieve ' });
+//     }
+//     res.status(200).json(results);
+//   });
+// });
+// Start the server
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
 });
-
-// API endpoint to get all assignments data
+// Get all students
+app.get('/api/students', (req, res) => {
+  const query = 'SELECT * FROM student';
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching student details:', err);
+      res.status(500).json({ error: 'Something went wrong' });
+    } else {
+      res.status(200).json(results);
+    }
+  });
+});
+// Get all assignments data
 app.get('/api/assignment', (req, res) => {
   const { title } = req.query; // Get the title from query parameter
 
-  let query = 'SELECT * FROM assignment';
+  let query = 'SELECT * FROM assignments';
   if (title) {
     query += ' WHERE title = ?'; // Add a condition if title is provided
   }
 
-  connection.query(query, [title], (err, results) => {
+  db.query(query, [title], (err, results) => { // Use `db.query` instead of `connection.query`
     if (err) {
       console.error('Error fetching data:', err);
       return res.status(500).json({ error: 'Failed to retrieve assignments' });
@@ -198,30 +240,118 @@ app.get('/api/assignment', (req, res) => {
   });
 });
 
-app.get('/api/rank', (req, res) => {
-  const query = 'SELECT *from ranking'; // Assuming `students` table has columns `id` and `name`
+// Handle creating an assignment
+app.post('/api/assignments', (req, res) => {
+  const { title, date, start_time, stop_time, explanation, number_of_students, numberoftasks, numberofranks, task_details, total_time } = req.body;
 
-  connection.query(query, (err, results) => {
-    if (err) {
-      console.error('Error fetching  ranking :', err);
-      return res.status(500).json({ error: 'Failed to retrieve ' });
+  const query = `
+    INSERT INTO assignment (
+      title, date, start_time, stop_time, explanation, number_of_students, numberoftasks, numberofranks, task_details, total_time
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+
+  db.query( // Use `db.query` instead of `connection.query`
+    query,
+    [title, date, start_time, stop_time, explanation, number_of_students, numberoftasks, numberofranks, JSON.stringify(task_details), total_time],
+    (err, results) => {
+      if (err) {
+        console.error('Error inserting data:', err);
+        return res.status(500).json({ error: 'Failed to save assignment' });
+      }
+      res.status(200).json({ message: 'Assignment saved successfully', id: results.insertId });
     }
-    res.status(200).json(results);
+  );
+});
+app.get('/api/namelist', (req, res) => {
+  const query = 'SELECT * FROM namelist';
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching assignments:', err);
+      res.status(500).json({ error: 'Something went wrong' });
+    } else {
+      res.status(200).json(results);
+    }
+  });
+});
+const getPoints = (rank) => {
+  switch (rank) {
+    case 1:
+      return 4;
+    case 2:
+      return 3;
+    case 3:
+      return 2;
+    case 4:
+      return 1;
+    default:
+      return 0;
+  }
+};
+
+// Fetch Ranks and Calculate Results
+app.get("/api/result", async (req, res) => {
+  try {
+    const response = await axios.get("http://192.168.205.45:5000/api/rank");
+    const rankingData = response.data; // Assuming this returns an array of ranks
+
+    let studentPoints = {};
+
+    rankingData.forEach(({ ranked_student_id, rank_given }) => {
+      if (!studentPoints[ranked_student_id]) {
+        studentPoints[ranked_student_id] = [];
+      }
+      studentPoints[ranked_student_id].push(getPoints(rank_given));
+    });
+
+    let results = [];
+    for (const student_id in studentPoints) {
+      const totalPoints = studentPoints[student_id].reduce((a, b) => a + b, 0);
+      const averagePoints = totalPoints / studentPoints[student_id].length;
+      const result_status = averagePoints >= 2 ? "PASS" : "FAIL";
+
+      results.push({ student_id, totalPoints, averagePoints, result_status });
+
+      // Store results in MySQL
+      const sql = "INSERT INTO result (student_id, total_points, average_points, result_status) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE total_points=?, average_points=?, result_status=?";
+      db.query(sql, [student_id, totalPoints, averagePoints, result_status, totalPoints, averagePoints, result_status], (err) => {
+        if (err) console.error("Error inserting results:", err);
+      });
+    }
+
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error("Error fetching ranking data:", error);
+    res.status(500).json({ success: false, error: "Failed to fetch rankings" });
+  }
+});
+
+
+// 📌 GET all student results
+app.get("/api/student_results", (req, res) => {
+  const sql = "SELECT * FROM student_results";
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error("Error fetching student results:", err);
+      return res.status(500).json({ success: false, error: "Database error" });
+    }
+    res.json({ success: true, data: results });
   });
 });
 
-app.get('/api/result', (req, res) => {
-  const query = 'SELECT *from result'; // Assuming `students` table has columns `id` and `name`
+// 📌 POST new student result
+app.post("/api/student_results", (req, res) => {
+  const { faculty_id, total_points, average_points, result_status } = req.body;
 
-  connection.query(query, (err, results) => {
+  if (!faculty_id || total_points === undefined || average_points === undefined || !result_status) {
+    return res.status(400).json({ success: false, error: "Missing required fields" });
+  }
+
+  const sql = `INSERT INTO student_results (faculty_id, total_points, average_points, result_status) VALUES (?, ?, ?, ?)`;
+  db.query(sql, [faculty_id, total_points, average_points, result_status], (err, result) => {
     if (err) {
-      console.error('Error fetching  ranking :', err);
-      return res.status(500).json({ error: 'Failed to retrieve ' });
+      console.error("Error inserting student result:", err);
+      return res.status(500).json({ success: false, error: "Database insert error" });
     }
-    res.status(200).json(results);
+    res.json({ success: true, message: "Student result added", id: result.insertId });
   });
-});
-// Start the server
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
 });
